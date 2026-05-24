@@ -1,9 +1,13 @@
 name: CI
 
 on:
+  # Runs only on merges to main (and manual dispatch). Per-PR CI was
+  # intentionally removed -- the local pre-push battery
+  # (typecheck + lint + test + build) is the contributor-side gate, and CI
+  # acts as the post-merge integration check. The DCO workflow
+  # (.github/workflows/dco.yml) still gates PRs because it's cheap and
+  # carries no compute cost worth optimizing.
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   workflow_dispatch:
 
