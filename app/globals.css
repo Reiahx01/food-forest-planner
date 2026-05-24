@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/*
+ * Brand tokens — mirror of `app/brand/tokens.ts`.
+ *
+ * Parity enforced at CI time by `app/brand/tokens-parity.test.ts`. Drift here
+ * causes visual regression + brand incoherence. When updating a token, change
+ * BOTH this file and `tokens.ts`.
+ *
+ * Single-mode nocturnal: no light-mode @media variant. Light mode is a v2
+ * decision per ADR-0004 (issue #3).
+ */
+
+:root {
+  /* surface */
+  --color-surface-base: oklch(11% 0.01 280);
+  --color-surface-raised: oklch(15% 0.012 280);
+  --color-surface-glass: oklch(15% 0.012 280 / 0.6);
+  --gradient-surface-glow: radial-gradient(circle, oklch(80% 0.15 75 / 0.25), transparent 70%);
+
+  /* accent */
+  --color-accent-gold: oklch(72% 0.13 80);
+  --color-accent-gold-dim: oklch(55% 0.10 80);
+  --color-accent-gold-bright: oklch(82% 0.14 75);
+  --gradient-accent-chrome: linear-gradient(180deg, oklch(85% 0.005 250), oklch(60% 0.005 250));
+  --color-accent-water: oklch(70% 0.10 230);
+  --color-accent-earth: oklch(45% 0.04 50);
+
+  /* border */
+  --color-border-glass: oklch(72% 0.13 80 / 0.3);
+  --color-border-solid: oklch(72% 0.13 80 / 0.8);
+  --color-border-chrome: oklch(85% 0.005 250 / 0.5);
+
+  /* text */
+  --color-text-primary: oklch(95% 0.01 80);
+  --color-text-muted: oklch(70% 0.015 80);
+  --color-text-inverse: oklch(11% 0.01 280);
+  --color-text-gold: oklch(72% 0.13 80);
+
+  /* state */
+  --color-state-hover: oklch(80% 0.14 80);
+  --color-state-selected: oklch(72% 0.13 80);
+  --color-state-danger: oklch(60% 0.20 25);
+  --color-state-success: oklch(70% 0.12 145);
+
+  /* shadow */
+  --shadow-glow: 0 0 24px oklch(72% 0.13 80 / 0.25), 0 4px 16px oklch(11% 0.01 280 / 0.6);
+  --shadow-panel: 0 12px 32px oklch(11% 0.01 280 / 0.8), inset 0 1px 0 oklch(72% 0.13 80 / 0.15);
+  --shadow-chrome: 0 1px 2px oklch(11% 0.01 280 / 0.8), 0 0 0 1px oklch(85% 0.005 250 / 0.5);
+}
+
+@theme inline {
+  /* Expose tokens to Tailwind v4 so utility classes like `bg-surface-base`,
+   * `text-accent-gold`, `border-border-glass`, `shadow-glow` resolve. */
+  --color-surface-base: var(--color-surface-base);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-glass: var(--color-surface-glass);
+
+  --color-accent-gold: var(--color-accent-gold);
+  --color-accent-gold-dim: var(--color-accent-gold-dim);
+  --color-accent-gold-bright: var(--color-accent-gold-bright);
+  --color-accent-water: var(--color-accent-water);
+  --color-accent-earth: var(--color-accent-earth);
+
+  --color-border-glass: var(--color-border-glass);
+  --color-border-solid: var(--color-border-solid);
+  --color-border-chrome: var(--color-border-chrome);
+
+  --color-text-primary: var(--color-text-primary);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-inverse: var(--color-text-inverse);
+  --color-text-gold: var(--color-text-gold);
+
+  --color-state-hover: var(--color-state-hover);
+  --color-state-selected: var(--color-state-selected);
+  --color-state-danger: var(--color-state-danger);
+  --color-state-success: var(--color-state-success);
+
+  --shadow-glow: var(--shadow-glow);
+  --shadow-panel: var(--shadow-panel);
+  --shadow-chrome: var(--shadow-chrome);
+
+  --font-display: var(--font-cormorant), serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
