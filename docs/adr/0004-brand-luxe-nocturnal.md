@@ -1,6 +1,6 @@
 # 0004 — "Luxe nocturnal" brand mood; OKLCH semantic tokens; light mode deferred to v2
 
-- **Status:** Proposed (2026-05-24) — operator review pending
+- **Status:** Accepted (2026-05-24)
 - **Deciders:** @Reiahx01
 
 ## Context
@@ -8,8 +8,6 @@
 food-forest-planner is a planning tool that competes with — and consciously distinguishes itself from — a market dominated by **generic SaaS aesthetic**: zinc/slate grays, white backgrounds, bordered cards, blue accents, "minimal" sans-serif type. This aesthetic is competent but interchangeable. Three competitor products look the same in screenshots.
 
 A planning tool for **food forests** is a craft instrument used over hours of focused attention. The visual register should reward that attention rather than fade into background. The decision is to pick a single, opinionated mood and codify it so well that future contributors cannot accidentally drift back toward the generic default.
-
-[Operator: verify this framing — the "anti-generic" intent is clearly present in CONTRIBUTING.md and the existing brand-test guardrails, but the specific mood language is inference.]
 
 ## Decision
 
@@ -63,7 +61,7 @@ The dark base is **not a theme variant**, it's the brand. A light theme is not a
 
 - **Some users prefer light themes** and we lose them in v1. Accepted: serving the brand-mood vision tightly beats serving everyone weakly.
 - **Accessibility requires care.** Gold-on-obsidian is high contrast; gold-on-glass with backdrop-blur can fall below WCAG AA in some panels. Compensated by `text.muted` falling back to brighter values in low-contrast contexts, and by explicit contrast tests (queued for v1.x).
-- **OKLCH browser support** is universal in 2026 (Chromium 111+, Firefox 113+, Safari 15.4+), but anyone on a 3-year-old enterprise browser sees fallback colors. Mitigated by a single `@supports not (color: oklch(0% 0 0))` block in globals.css with sRGB fallbacks. [Operator: verify this fallback strategy matches your intent.]
+- **OKLCH browser support** is universal in 2026 (Chromium 111+, Firefox 113+, Safari 15.4+), but anyone on a 3-year-old enterprise browser sees fallback colors. Mitigated by a single `@supports not (color: oklch(0% 0 0))` block in globals.css with sRGB fallbacks.
 - **Light mode is a real future cost.** v2 will require visual designer time, not just CSS work.
 
 ## Alternatives considered
@@ -78,9 +76,7 @@ The dark base is **not a theme variant**, it's the brand. A light theme is not a
 
 Open a new ADR superseding this one if any of these tripwires fire:
 
-- **User research shows the "luxe nocturnal" mood actively repels target users** — specifically, > [Operator: name a threshold — suggested: 30%] of a survey of permaculture / agroforestry practitioners cite the visual style as a blocker to adoption. → Reopen the brand brief; light-mode acceleration is on the table.
+- **User research shows the "luxe nocturnal" mood actively repels target users** — specifically, > 30% of a survey of permaculture / agroforestry practitioners cite the visual style as a blocker to adoption. → Reopen the brand brief; light-mode acceleration is on the table.
 - **Accessibility audits flag systemic contrast failures** that token-tweaks can't resolve. → Reopen with a contrast-first redesign mandate.
 - **OKLCH support regresses** in any browser holding > 2% of our user base (extremely unlikely; included for completeness).
 - **The DON'T list catches more than 1 PR per month** for a sustained period. The guardrails are then doing valuable work but signal that contributor onboarding is failing. → Re-examine CONTRIBUTING.md's brand section and/or write a brand-onboarding doc.
-
-[Operator: verify the 30% survey threshold or substitute the metric you actually plan to track. The current value is a placeholder.]

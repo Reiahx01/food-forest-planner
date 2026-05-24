@@ -15,12 +15,12 @@ The **Revisit condition** field is what distinguishes these from "we wrote it do
 
 | # | Title | Status | Decision in one line |
 |---|-------|--------|----------------------|
-| [0001](./0001-stack.md) | Stack: Next.js 16 + Supabase + MapLibre + Esri + Vercel; AGPL-3.0 | Proposed | Pick OSS-friendly, runtime-cheap, fork-resilient infrastructure over enterprise convenience |
-| [0002](./0002-element-interface-architecture.md) | Polymorphic Element table + `ElementTypeModule<T>` interface | Proposed | One table + typed interface, not one table per element type |
-| [0003](./0003-rls-role-gating.md) | Role gating in Postgres RLS, not app middleware | Proposed | The database is the security boundary; app code can be misread but RLS cannot be bypassed |
-| [0004](./0004-brand-luxe-nocturnal.md) | "Luxe nocturnal" brand mood; OKLCH semantic tokens; light mode deferred to v2 | Proposed | Pick a single, opinionated mood over generic flexibility; codify DON'Ts |
-| [0005](./0005-plant-library-phased.md) | Plant library phased v1 curated → v1.1 user-private → v1.2 community-moderated | Proposed | Single `species` table with a `source` discriminator across all three phases |
-| [0006](./0006-map-libre-esri.md) | MapLibre GL JS + Esri raster tiles over Mapbox / Google | Proposed | OSS map renderer + permissive tile source; preserves AGPL forkability |
+| [0001](./0001-stack.md) | Stack: Next.js 16 + Supabase + MapLibre + Esri + Vercel; AGPL-3.0 | Accepted | Pick OSS-friendly, runtime-cheap, fork-resilient infrastructure over enterprise convenience |
+| [0002](./0002-element-interface-architecture.md) | Polymorphic Element table + `ElementTypeModule<T>` interface | Accepted | One table + typed interface, not one table per element type |
+| [0003](./0003-rls-role-gating.md) | Role gating in Postgres RLS, not app middleware | Accepted | The database is the security boundary; app code can be misread but RLS cannot be bypassed |
+| [0004](./0004-brand-luxe-nocturnal.md) | "Luxe nocturnal" brand mood; OKLCH semantic tokens; light mode deferred to v2 | Accepted | Pick a single, opinionated mood over generic flexibility; codify DON'Ts |
+| [0005](./0005-plant-library-phased.md) | Plant library phased v1 curated → v1.1 user-private → v1.2 community-moderated | Accepted | Single `species` table with a `source` discriminator across all three phases |
+| [0006](./0006-map-libre-esri.md) | MapLibre GL JS + Esri raster tiles over Mapbox / Google | Accepted | OSS map renderer + permissive tile source; preserves AGPL forkability |
 
 ## When a new ADR is warranted
 

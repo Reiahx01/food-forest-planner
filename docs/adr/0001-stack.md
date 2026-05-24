@@ -1,6 +1,6 @@
 # 0001 — Stack: Next.js 16 + Supabase + MapLibre + Esri + Vercel; AGPL-3.0
 
-- **Status:** Proposed (2026-05-24) — operator review pending
+- **Status:** Accepted (2026-05-24)
 - **Deciders:** @Reiahx01
 
 ## Context
@@ -53,9 +53,7 @@ food-forest-planner needs a stack that supports:
 
 Open a new ADR superseding this one if any of these tripwires fire:
 
-- **Supabase pricing change** that pushes the production hosted cost above [Operator: name a threshold — suggested: $300/mo at 1k MAU] on the smallest viable plan. → Migrate to self-hosted Supabase or PlanetScale + a Postgres-compatible alternative.
+- **Supabase pricing change** that pushes the production hosted cost above $300/mo at 1k MAU on the smallest viable plan. → Migrate to self-hosted Supabase or PlanetScale + a Postgres-compatible alternative.
 - **Next.js 16 introduces an unfixable regression** for our editor surface (e.g. RSC + MapLibre interop breaks) that the Next team declines to fix within one minor version. → Pin to last working version and evaluate Remix or Astro for v2.
 - **AGPL discourages a meaningful named contributor** (a person we'd otherwise want, naming them in the new ADR). → Reopen the license choice; the contributor pool matters more than the philosophical defense.
 - **Mapbox GL JS relicenses back to permissive**. → Reopen ADR-0006 only; this ADR's other layers are unaffected.
-
-[Operator: verify the specific tripwire thresholds — these are placeholders sized to feel reasonable, but you have the real numbers.]
