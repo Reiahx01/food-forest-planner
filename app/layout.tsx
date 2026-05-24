@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+
 import { fontVariables } from '@/app/brand/fonts';
 import './globals.css';
 
