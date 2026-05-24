@@ -1,6 +1,6 @@
 # 0005 — Plant library phased: v1 curated → v1.1 user-private → v1.2 community-moderated
 
-- **Status:** Proposed (2026-05-24) — operator review pending
+- **Status:** Accepted (2026-05-24)
 - **Deciders:** @Reiahx01
 
 ## Context
@@ -16,8 +16,6 @@ The naive options are:
 - **Curated-only forever** (Plant.id model). Solves quality, fails coverage. Becomes a maintainer treadmill.
 - **Open contribution from day one** (iNaturalist model). Solves coverage, fails quality. Bad early-stage data poisons the dataset.
 - **Phased rollout** (this ADR's choice).
-
-[Operator: verify this framing matches your planning notes — the phased model is referenced in CONTRIBUTING.md and the issue body for #15, but the exact phasing language is inference.]
 
 ## Decision
 
@@ -74,7 +72,7 @@ create policy species_read on species for select using (
 **Accepted negatives:**
 
 - **The maintainer is the moderation rate-limit until v1.2 ships.** Between v1.0 and v1.2, any user requesting a species not in the curated set has to add it privately or wait.
-- **`source = 'community'` with `approved_at = null` is a queue table.** It can grow unboundedly if no moderators are appointed. Mitigated by a maintenance cron that pings the moderator team when the queue exceeds [Operator: name a threshold — suggested: 100 pending].
+- **`source = 'community'` with `approved_at = null` is a queue table.** It can grow unboundedly if no moderators are appointed. Mitigated by a maintenance cron that pings the moderator team when the queue exceeds 100 pending.
 - **Schema is single-table.** A future need for very different attribute shapes per species kind (e.g. mushrooms, animals) might strain `attrs jsonb`. Accepted: deal with it when it appears; the cost of premature multi-table design is higher.
 - **Private species cannot be "promoted" to community** without a flow we haven't designed yet (v1.2 backlog includes a "share this with the community" button on private species).
 
@@ -89,9 +87,7 @@ create policy species_read on species for select using (
 
 Open a new ADR superseding this one if any of these tripwires fire:
 
-- **Curated set proves insufficient at v1.0.** Specifically: > [Operator: name a threshold — suggested: 25%] of recorded placement actions hit "species not in library." → Accelerate v1.1 timeline; consider partial community v1.2 with maintainer-only approval as an interim.
-- **Community moderation becomes a backlog rather than a flow.** Specifically: average time-to-approve a community-proposed species > [Operator: suggested: 2 weeks] for three consecutive months. → Reopen the moderation model — paid moderators, tiered approval, or auto-approve-with-reversion.
+- **Curated set proves insufficient at v1.0.** Specifically: > 25% of recorded placement actions hit "species not in library." → Accelerate v1.1 timeline; consider partial community v1.2 with maintainer-only approval as an interim.
+- **Community moderation becomes a backlog rather than a flow.** Specifically: average time-to-approve a community-proposed species > 2 weeks for three consecutive months. → Reopen the moderation model — paid moderators, tiered approval, or auto-approve-with-reversion.
 - **Private species count per user exceeds the v1.1 design assumption** — specifically > 500 per active user. → The per-user library is becoming the primary library; reopen whether community promotion should be the default rather than the exception.
 - **Attribute shapes need to diverge.** A new species kind (mushroom, fungi-as-companion, animal in a permaculture context) requires fields that `attrs jsonb` strains to hold validly. → Reopen the single-table choice or design a sub-schema discriminator.
-
-[Operator: verify the 25% / 2-week / 500-species thresholds — these are placeholders sized to feel reasonable but you'd have the operational numbers.]

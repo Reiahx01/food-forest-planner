@@ -1,6 +1,6 @@
 # 0002 — Polymorphic Element table + `ElementTypeModule<T>` interface
 
-- **Status:** Proposed (2026-05-24) — operator review pending
+- **Status:** Accepted (2026-05-24)
 - **Deciders:** @Reiahx01
 
 ## Context
@@ -17,8 +17,6 @@ The naive options are:
 1. **One table per element type** (`ponds`, `swales`, `paths`, ...). Strongly typed at the database level, but each new element type requires schema migration, RLS-policy duplication, and a new code path in every consumer (rendering, validation, undo/redo, export).
 2. **Single polymorphic table with branching consumers.** A `kind` column drives `switch` statements everywhere. New types require touching every consumer.
 3. **Polymorphic table + typed plug-in module interface** (this ADR's choice).
-
-[Operator: verify this is the framing from your planning notes.]
 
 ## Decision
 
@@ -78,7 +76,5 @@ Adding a new element type = create one file under `app/elements/<kind>/module.ts
 Open a new ADR superseding this one if any of these tripwires fire:
 
 - **5+ element types exist** and three or more of them need behavior that doesn't fit the interface (e.g. an element type that owns child elements, or one that spans multiple designs). → Split the interface into `ElementTypeModule` + `CompositeElementModule`, or reconsider per-type tables for the outliers.
-- **Polymorphic queries become slow.** P95 query latency on `select * from elements where design_id = $1` exceeds [Operator: name a threshold — suggested: 100ms at 10k elements per design]. → Add a covering index on `(design_id, kind)` first; if that fails, consider per-type tables for the largest-volume types.
+- **Polymorphic queries become slow.** P95 query latency on `select * from elements where design_id = $1` exceeds 100ms at 10k elements per design. → Add a covering index on `(design_id, kind)` first; if that fails, consider per-type tables for the largest-volume types.
 - **A community contributor cannot add a new element type without modifying core code.** The interface failed at its one job. → Reopen the interface design.
-
-[Operator: verify the elements-per-design and latency thresholds against your real expectations — these are placeholders.]

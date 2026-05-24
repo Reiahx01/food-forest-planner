@@ -1,6 +1,6 @@
 # 0003 — Role gating in Postgres RLS, not application middleware
 
-- **Status:** Proposed (2026-05-24) — operator review pending
+- **Status:** Accepted (2026-05-24)
 - **Deciders:** @Reiahx01
 
 ## Context
@@ -18,8 +18,6 @@ The two extremes:
 
 1. **Application middleware.** Every API route checks the user's role + ownership before reading/writing. Database lets through whatever the app sends.
 2. **Postgres Row-Level Security (RLS).** Every table has policies that say "row visible only when X." Application code passes the user's JWT to Supabase; the database refuses requests that violate policy. Application middleware becomes optional.
-
-[Operator: verify this framing matches your planning notes.]
 
 ## Decision
 
@@ -68,8 +66,6 @@ Some unit tests don't need a real database (e.g. pure component tests, validator
 Open a new ADR superseding this one if any of these tripwires fire:
 
 - **A security incident traces to an RLS bypass or misconfiguration**. → Reopen and decide whether to add a redundant app-layer enforcement, or whether the fix is policy-level.
-- **A meaningful query is unfixably slow** because of RLS. Specifically: a query the app needs in the editor's hot path runs > [Operator: name a threshold — suggested: 200ms P95] after exhausting indexing options. → Consider materialized views, or carve out a service-role-backed read path with explicit isolation checks.
+- **A meaningful query is unfixably slow** because of RLS. Specifically: a query the app needs in the editor's hot path runs > 200ms P95 after exhausting indexing options. → Consider materialized views, or carve out a service-role-backed read path with explicit isolation checks.
 - **Supabase changes its RLS guarantees** in a way that breaks our assumptions (e.g. silently disabling RLS on some operations). → Reopen.
 - **The service-role key gets exposed** via any code path. → Immediate incident; this ADR doesn't get reopened, but the incident response process does.
-
-[Operator: verify the latency threshold and confirm whether you want any redundant app-layer checks for the most sensitive tables — RLS-only is the proposed default, but defense-in-depth is a reasonable variant.]

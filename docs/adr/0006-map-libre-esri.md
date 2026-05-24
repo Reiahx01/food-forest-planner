@@ -1,6 +1,6 @@
 # 0006 — MapLibre GL JS renderer + Esri World Imagery raster tiles
 
-- **Status:** Proposed (2026-05-24) — operator review pending
+- **Status:** Accepted (2026-05-24)
 - **Deciders:** @Reiahx01
 
 ## Context
@@ -15,12 +15,10 @@ Two independent decisions are bundled here because their constraints interact:
 Constraints:
 
 - **Distribution under AGPL-3.0** (see ADR-0001). The renderer must be license-compatible. The tile source's ToS must not encumber AGPL forks.
-- **Free-tier cost ceiling** at expected v1 scale ([Operator: name your expectation — assumed: low five-figure monthly active users with mid-five-figure tile loads]).
+- **Free-tier cost ceiling** at expected v1 scale (low five-figure monthly active users with mid-five-figure tile loads).
 - **Imagery quality.** Satellite/aerial imagery must be sharp enough to draw a parcel from. Vector basemaps without imagery are insufficient for this product.
 - **Attribution requirements** must be acceptable in a permanent footer / map-corner ribbon.
 - **Self-hostability for forks.** A self-hosted instance should be able to swap to a different tile source without rewriting application code.
-
-[Operator: verify the MAU + tile-load expectations — these are placeholders.]
 
 ## Decision
 
@@ -59,7 +57,7 @@ All overlay layers consume brand tokens (ADR-0004) for color so the map chrome r
 - **Esri ToS reserves the right to change terms** for the public Living Atlas service. If they introduce a rate limit, a registration requirement, or remove the service, we have to swap tile sources. Mitigated by the abstraction layer — swap is config-only, not code-level.
 - **Raster imagery is bandwidth-heavy.** Z18 tiles are ~50–150KB each. A user panning aggressively can pull megabytes of tiles per minute. Mitigated by browser cache + MapLibre's built-in tile cache + (optionally, later) a CDN proxy in front of Esri.
 - **No vector basemap means no styling control over the basemap itself.** Roads, labels, terrain — what Esri ships is what we get. Mitigated by the fact that for a planning tool, the base imagery is reference, not aesthetic — we don't want users distracted by stylized basemap chrome.
-- **AGPL distribution of the rendered map** raises subtle questions about whether tiles fetched at runtime count as combined work. The conservative answer is "tiles are runtime data, like server responses, not bundled work" — this is the prevailing community interpretation but is not a court ruling. [Operator: verify you're comfortable with this interpretation.]
+- **AGPL distribution of the rendered map** raises subtle questions about whether tiles fetched at runtime count as combined work. The conservative answer is "tiles are runtime data, like server responses, not bundled work" — this is the prevailing community interpretation but is not a court ruling.
 
 ## Alternatives considered
 
@@ -75,8 +73,6 @@ Open a new ADR superseding this one if any of these tripwires fire:
 
 - **Esri changes terms** for the public World Imagery endpoint — introduces rate limits, requires API keys, or removes the public service. → Swap to MapTiler (paid, generous free tier) or a self-hosted source via the tile-source abstraction. The renderer doesn't change.
 - **Mapbox GL JS relicenses back to permissive** (extremely unlikely, included for completeness). → Reopen renderer choice; tile source is unaffected.
-- **Tile traffic exceeds a monthly threshold** suggesting we're abusing Esri's free service. Specifically: > [Operator: name a threshold — suggested: 10M tile requests / month] sustained for two months. → Move to a paid provider or self-host before we get rate-limited.
+- **Tile traffic exceeds a monthly threshold** suggesting we're abusing Esri's free service. Specifically: > 10M tile requests / month sustained for two months. → Move to a paid provider or self-host before we get rate-limited.
 - **A meaningful interactive performance regression** at high zoom + many overlay layers. → Reopen renderer choice (Mapbox-GL fork, Deck.gl on top of MapLibre, etc.).
 - **An AGPL combined-work ruling** clarifies that fetched tiles are bundled work. → Reopen tile-source choice; favor self-hostable sources only.
-
-[Operator: verify the 10M/month threshold against the user-scale expectations and update if you have a real number.]
