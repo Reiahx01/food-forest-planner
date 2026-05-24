@@ -1,0 +1,41 @@
+name: DCO
+
+on:
+  pull_request:
+    branches: [main]
+
+# Verify every commit in the PR carries a `Signed-off-by:` trailer.
+# Inline-bash implementation — no third-party action dependency.
+
+jobs:
+  dco:
+    name: Verify DCO sign-off on every PR commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check Signed-off-by trailer on every commit
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -e
+          git fetch origin "$BASE_REF" --depth=50
+          fail=0
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            if ! git log -1 --pretty=format:'%B' "$sha" | grep -qE '^Signed-off-by: .+ <.+@.+>'; then
+              echo "::error::Commit $sha missing Signed-off-by trailer"
+              echo "  $(git log -1 --pretty=format:'%h %s' "$sha")"
+              fail=1
+            fi
+          done < <(git log --no-merges --pretty=format:'%H' "origin/$BASE_REF..HEAD")
+          if [ "$fail" -ne 0 ]; then
+            echo ""
+            echo "Fix: amend your commits to add Signed-off-by trailers."
+            echo "    git commit --amend -s --no-edit    # for the most recent commit"
+            echo "    git rebase --signoff origin/$BASE_REF   # for multiple commits"
+            echo "    git push --force-with-lease"
+            exit 1
+          fi
+          echo "All commits carry valid Signed-off-by trailers."

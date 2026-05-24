@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { tokens } from './tokens';
 
 describe('brand/tokens — canonical brand system contract', () => {
