@@ -109,7 +109,56 @@ Open a GitHub issue with the `needs-triage` label. For bugs, include:
 
 ## Code of Conduct
 
-This project follows the [Contributor Covenant 2.1](./CODE_OF_CONDUCT.md). Be kind, be specific, assume good faith.
+This project adopts the [**Contributor Covenant 2.1**](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) verbatim. The summary below is for orientation; the canonical text at that link governs.
+
+### Our pledge
+
+We pledge to make participation in this project a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, caste, color, religion, or sexual identity and orientation.
+
+### Standards
+
+**Positive behavior we want more of:**
+
+- Demonstrating empathy and kindness toward other people
+- Being respectful of differing opinions, viewpoints, and experiences
+- Giving and gracefully accepting constructive feedback
+- Accepting responsibility, apologizing to those affected by mistakes, and learning from the experience
+- Focusing on what is best for the overall community
+
+**Behavior we won't tolerate:**
+
+- Sexualized language or imagery, and sexual attention or advances of any kind
+- Trolling, insulting or derogatory comments, and personal or political attacks
+- Public or private harassment
+- Publishing others' private information (physical or email address, account credentials) without their explicit permission
+- Other conduct which could reasonably be considered inappropriate in a professional setting
+
+### Scope
+
+This Code applies in all project spaces (issues, PRs, discussions, the codebase) and also when an individual is officially representing the project in public spaces (a stated project email address, posting via an official social media account, acting as an appointed representative at an event).
+
+### Reporting
+
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported confidentially via this project's [**private security advisory form**](https://github.com/Reiahx01/food-forest-planner/security/advisories/new). The advisory channel is private to the maintainer and reporter; it's appropriate for Code of Conduct reports even though the UI is framed around security vulnerabilities. All complaints will be reviewed and investigated promptly and fairly.
+
+The maintainer is obligated to respect the privacy and security of the reporter of any incident.
+
+### Enforcement
+
+The Contributor Covenant 2.1 [enforcement guidelines](https://www.contributor-covenant.org/version/2/1/code_of_conduct/#enforcement-guidelines) define a four-step escalation ladder used by this project:
+
+1. **Correction** — private written warning, clarity on the violation, public apology may be requested.
+2. **Warning** — consequences for continued behavior, no interaction with those enforcing for a specified period.
+3. **Temporary ban** — temporary ban from any sort of interaction or public communication with the community.
+4. **Permanent ban** — permanent ban from any sort of public interaction within the community.
+
+The full guidelines (including the criteria for each step) are at the link above.
+
+### Attribution
+
+This Code of Conduct is adapted from the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/), available under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Community Impact Guidelines were inspired by [Mozilla's code of conduct enforcement ladder](https://github.com/mozilla/inclusion).
+
+For answers to common questions about this Code, see the FAQ at [contributor-covenant.org/faq](https://www.contributor-covenant.org/faq). Translations are available at [contributor-covenant.org/translations](https://www.contributor-covenant.org/translations).
 
 ## License
 
