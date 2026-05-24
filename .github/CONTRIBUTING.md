@@ -84,6 +84,23 @@ git push --force-with-lease
 
 Each PR should cut through every relevant layer (schema → API → UI → tests) for one feature slice. Avoid PRs that touch only the schema layer + leave UI for a follow-up — they accumulate untested code paths.
 
+### Architecture Decision Records
+
+Load-bearing decisions live as ADRs in [`docs/adr/`](../docs/adr/) — one file per decision, numbered `NNNN-slug.md`. Read the [ADR index](../docs/adr/README.md) before touching adjacent code; the ADRs document _why_ the current shape exists, which is information the code itself cannot carry.
+
+Write a new ADR when:
+
+- A **load-bearing technology** is chosen or replaced (auth provider, database, map renderer, billing platform).
+- A **plug-in surface contract** is defined or significantly changed.
+- A **security or data-isolation boundary** is established or moved.
+- A **legal / licensing decision** is made.
+- A **product-scope cut or deferral** is made that other contributors will repeatedly bump into.
+- A previous ADR's **revisit condition trips** — write a new ADR superseding the old one rather than editing the old one in place.
+
+Do NOT write an ADR for routine refactors, file moves, dependency bumps within the same ecosystem, or choices that can be reversed in a single PR without contributor coordination.
+
+Each ADR follows the structure documented in [`docs/adr/README.md`](../docs/adr/README.md), including a **Revisit condition** — the tripwire (with a measurable threshold) that should force us to reopen the decision. Decisions without revisit conditions ossify into law; we don't ship those.
+
 ## Opening a PR
 
 1. Branch from `main` (or from the relevant blocker branch if stacked): `git checkout -b NN-short-name` where `NN` is the issue number.
@@ -92,7 +109,13 @@ Each PR should cut through every relevant layer (schema → API → UI → tests
 4. Push and open a PR titled `feat(#NN): one-line description`.
 5. PR description: what shipped, test results, any operator follow-up.
 
-CI gates: typecheck + lint + test + build + DCO. All four must be green to merge. A `needs-triage` issue label clears when the issue moves to `in-progress`.
+Merge gates (per ADR-0001 and the trigger change in PR #31):
+
+- **PR-time**: only DCO runs on PRs (~5s). It must be green. The four CI jobs (typecheck, lint, vitest, next build) **do not run on PRs by design** — the contributor's local pre-push battery is the gate.
+- **Post-merge**: the four CI jobs run against the rebased commits on `main`. Failures fix-forward or revert.
+- **Structural rules** enforced by branch protection: linear history (rebase-only), no force-push to `main`, no direct push to `main`, signed-off-by trailer on every commit.
+
+A `needs-triage` issue label clears when the issue moves to `in-progress`.
 
 ## Plant library contributions
 
