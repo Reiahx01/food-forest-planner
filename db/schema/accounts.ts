@@ -24,6 +24,11 @@ export const accounts = pgTable('accounts', {
   email: text('email').notNull().unique(),
   role: text('role', { enum: ACCOUNT_ROLES }).notNull().default('hobbyist'),
   displayName: text('display_name'),
+  /**
+   * When the user finished the onboarding flow (#6). Null = not yet onboarded;
+   * the proxy + dashboard redirect them to /onboarding until this is set.
+   */
+  onboardedAt: timestamp('onboarded_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

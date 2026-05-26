@@ -62,7 +62,7 @@ integrationOnly('integration: signup flow against real Supabase', () => {
     // to know the row exists with the expected shape.
     const { data: account, error } = await admin
       .from('accounts')
-      .select('id, email, role, display_name')
+      .select('id, email, role, display_name, onboarded_at')
       .eq('id', user.id)
       .single();
 
@@ -72,7 +72,31 @@ integrationOnly('integration: signup flow against real Supabase', () => {
       email,
       role: 'hobbyist',
       display_name: null,
+      onboarded_at: null,
     });
+  });
+
+  test('onboarding update flips role + onboarded_at atomically', async () => {
+    const email = `it-${randomUUID()}@test.local`;
+    const { data: created } = await admin.auth.admin.createUser({ email, email_confirm: true });
+    const user = requireUser(created.user, 'auth user');
+    createdUserIds.push(user.id);
+
+    const now = new Date().toISOString();
+    const { error: updateError } = await admin
+      .from('accounts')
+      .update({ role: 'pro', onboarded_at: now })
+      .eq('id', user.id);
+    expect(updateError).toBeNull();
+
+    const { data: account } = await admin
+      .from('accounts')
+      .select('role, onboarded_at')
+      .eq('id', user.id)
+      .single();
+
+    expect(account?.role).toBe('pro');
+    expect(account?.onboarded_at).not.toBeNull();
   });
 
   test('cascade: deleting auth.users removes the accounts row', async () => {

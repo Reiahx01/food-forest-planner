@@ -3,26 +3,35 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerSupabaseClient, type CookieAdapter } from '@/lib/supabase/server';
 
 /**
- * Next 16 Proxy (formerly `middleware.ts`) -- runs at the edge before route
- * rendering. Job: gate authenticated paths cheaply.
+ * Next 16 Proxy (replacement for `middleware.ts`) -- runs at the edge before
+ * route rendering. Job: gate authenticated and onboarded paths cheaply, before
+ * we pay for an SSR render of a page the user can't see.
  *
- * Two-layer auth defence:
- *   - Edge: this proxy short-circuits anon requests to /dashboard so we never
- *     pay for an SSR render of a page the user can't see.
- *   - Origin: `app/dashboard/page.tsx` also calls `getCurrentAccount()` and
- *     `redirect('/signup')` itself. If the proxy is misconfigured, the page
- *     still refuses.
+ * The full state machine for a request:
  *
- * `?next=` preserves the path the user tried to reach, so /auth/callback can
- * land them back where they started.
+ *   anon          -> /signup?next=<path>
+ *   authed + not-onboarded
+ *                 -> if on /onboarding: pass through.
+ *                    else:               redirect to /onboarding.
+ *   authed + onboarded
+ *                 -> if on /onboarding: redirect forward to /dashboard.
+ *                    else:               pass through.
+ *
+ * `app/onboarding/page.tsx` and `app/dashboard/page.tsx` repeat the same
+ * checks server-side -- defence in depth so a misconfigured matcher can't
+ * leak the wrong page.
  */
 
-const PROTECTED_PREFIXES = ['/dashboard'];
+const PROTECTED_PREFIXES = ['/dashboard', '/onboarding'];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
+}
+
+function isOnboardingPath(pathname: string): boolean {
+  return pathname === '/onboarding' || pathname.startsWith('/onboarding/');
 }
 
 function cookieAdapter(request: NextRequest, response: NextResponse): CookieAdapter {
@@ -43,36 +52,43 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  // Build the passthrough response first; supabase-ssr writes refreshed
-  // cookies into it via the adapter.
   const passthrough = NextResponse.next();
   const supabase = createServerSupabaseClient({
     cookies: cookieAdapter(request, passthrough),
   });
 
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) {
     const signupUrl = new URL('/signup', request.url);
     signupUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(signupUrl);
   }
 
+  // One lightweight RLS-respecting read to check onboarded state. Could be
+  // moved into a JWT claim later if this becomes a hot-path concern, but at
+  // ~1ms per gated request it's a fine starting point.
+  const { data: accountRow } = await supabase
+    .from('accounts')
+    .select('onboarded_at')
+    .eq('id', userData.user.id)
+    .single();
+
+  const onboarded = Boolean(accountRow?.onboarded_at);
+
+  if (!onboarded && !isOnboardingPath(pathname)) {
+    return NextResponse.redirect(new URL('/onboarding', request.url));
+  }
+  if (onboarded && isOnboardingPath(pathname)) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   return passthrough;
 }
 
-/**
- * Matcher excludes _next assets, image optimisation, favicon, and the API
- * surface from the proxy. We only want auth-checks on user-facing pages.
- */
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image  (image optimisation files)
-     * - favicon.ico  (browser favicon)
-     * - any path containing a file extension (.png, .ico, etc -- assets)
-     */
+    // Match all request paths except _next assets, image optimisation,
+    // favicon, and any asset with a file extension.
     '/((?!_next/static|_next/image|favicon\\.ico|.*\\..*).*)',
   ],
 };
