@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 
 import {
+  deleteMessage,
   extractMagicLink,
   getMessage,
-  purgeMailbox,
   waitForMessageTo,
-} from './helpers/inbucket';
+} from './helpers/mailpit';
 
 /**
  * #5 Playwright follow-up: full magic-link signup happy path.
@@ -15,17 +15,19 @@ import {
  * Stack involved end-to-end:
  *   - /signup page + requestMagicLink Server Action
  *   - Supabase Auth (signInWithOtp)
- *   - Local Inbucket (where the dev email is captured)
+ *   - Local Mailpit (where the dev email is captured -- note the container
+ *     is still called `supabase_inbucket_*` for backward compat, but the
+ *     image is mailpit:v1.x; see helpers/mailpit.ts for context).
  *   - /auth/callback route (exchanges ?code= for a session)
  *   - public.accounts trigger from auth.users
  *   - /dashboard server component (RLS-respecting read of the user's row)
  *
  * Each spec uses a unique `e2e-<uuid>@test.local` so parallel runs don't
- * step on each other's mailboxes.
+ * step on each other's mail.
  */
 
 test.describe('signup magic-link happy path', () => {
-  test('email -> Inbucket -> callback -> /dashboard with role=hobbyist', async ({
+  test('email -> Mailpit -> callback -> /dashboard with role=hobbyist', async ({
     page,
     request,
   }) => {
@@ -45,11 +47,11 @@ test.describe('signup magic-link happy path', () => {
     // The CI workflow's "Dump Inbucket state on failure" step handles the
     // post-failure diagnostics (it dumps the supabase_auth + supabase_inbucket
     // container logs which are far more useful than the REST API state).
-    const { mailbox, header } = await test.step(
-      'retrieve the magic link from Inbucket',
+    const header = await test.step(
+      'retrieve the magic link from Mailpit',
       async () => waitForMessageTo(request, email),
     );
-    const message = await getMessage(request, mailbox, header.id);
+    const message = await getMessage(request, header.ID);
     const magicLink = extractMagicLink(message);
 
     await test.step('follow the link and land on /dashboard', async () => {
@@ -65,7 +67,7 @@ test.describe('signup magic-link happy path', () => {
       await expect(page.getByRole('heading', { name: new RegExp(`Hi ${escapeRegex(email)}`) })).toBeVisible();
     });
 
-    await purgeMailbox(request, mailbox);
+    await deleteMessage(request, header.ID);
   });
 });
 
