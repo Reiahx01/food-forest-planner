@@ -89,7 +89,9 @@ jobs:
             supabase-images-${{ runner.os }}-
 
       - name: Load cached Docker images
-        if: steps.docker-cache.outputs.cache-hit == 'true'
+        # No `if: cache-hit == 'true'` -- restore-keys partial matches DON'T
+        # set cache-hit, but they DO populate the path. Just iterate; the
+        # nullglob makes the loop a no-op on a true cold cache.
         run: |
           shopt -s nullglob
           for tar in /tmp/supabase-images/*.tar; do
@@ -99,7 +101,20 @@ jobs:
           done
 
       - name: Start local Supabase (Postgres + PostGIS + Auth + Storage)
-        run: npx supabase start --workdir .
+        # Retry once on transient ECR rate-limit failures. The supabase CLI
+        # already retries individual image pulls; this outer retry handles
+        # the case where the CLI itself gives up.
+        run: |
+          for attempt in 1 2 3; do
+            if npx supabase start --workdir .; then
+              exit 0
+            fi
+            echo "::warning::supabase start failed on attempt ${attempt}; retrying after $((attempt * 30))s"
+            npx supabase stop --workdir . --no-backup >/dev/null 2>&1 || true
+            sleep $((attempt * 30))
+          done
+          echo "::error::supabase start failed after 3 attempts"
+          exit 1
 
       - name: Save Supabase Docker images for the next run
         if: steps.docker-cache.outputs.cache-hit != 'true'
@@ -218,7 +233,9 @@ jobs:
             supabase-images-${{ runner.os }}-
 
       - name: Load cached Docker images
-        if: steps.docker-cache.outputs.cache-hit == 'true'
+        # See the integration job for context: restore-keys partial matches
+        # DON'T set cache-hit but DO populate the path. nullglob handles a
+        # true cold cache cleanly.
         run: |
           shopt -s nullglob
           for tar in /tmp/supabase-images/*.tar; do
@@ -226,7 +243,19 @@ jobs:
           done
 
       - name: Start local Supabase
-        run: npx supabase start --workdir .
+        # Retry on ECR rate-limit transients (anon Public-ECR allowance is
+        # tight; cold pulls of all ~13 supabase images can blow it).
+        run: |
+          for attempt in 1 2 3; do
+            if npx supabase start --workdir .; then
+              exit 0
+            fi
+            echo "::warning::supabase start failed on attempt ${attempt}; retrying after $((attempt * 30))s"
+            npx supabase stop --workdir . --no-backup >/dev/null 2>&1 || true
+            sleep $((attempt * 30))
+          done
+          echo "::error::supabase start failed after 3 attempts"
+          exit 1
 
       - name: Capture local Supabase credentials
         run: |
