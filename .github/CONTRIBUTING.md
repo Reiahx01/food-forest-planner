@@ -28,11 +28,15 @@ npm test               # unit tests only -- IS_INTEGRATION unset
 IS_INTEGRATION=1 npm test   # add the integration tests; requires db:start running
 npm run build
 
-# 6. Tear down the local stack when done
+# 6. Optional: run the Playwright e2e suite (needs db:start + a built app)
+npm run e2e:install    # one-time: install Chromium binary (~150 MB)
+npm run e2e            # boots `next dev` and runs the e2e specs
+
+# 7. Tear down the local stack when done
 npm run db:stop
 ```
 
-The full local battery should be green before you push. CI runs the same four checks on every merge to `main`, plus an `integration` job that boots a real Supabase locally and runs the IS_INTEGRATION=1 path.
+The full local battery should be green before you push. CI runs typecheck, lint, unit tests, build, an `integration` job (real Supabase + `IS_INTEGRATION=1`), the `docker-build` Dockerfile-rot guard, and the `e2e` Playwright happy-path on every merge to `main`.
 
 ### Database conventions
 
