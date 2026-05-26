@@ -194,7 +194,7 @@ jobs:
     name: Playwright (signup happy-path)
     runs-on: ubuntu-latest
     # Closes the #5 acceptance criterion deferred from PR #38. End-to-end:
-    # /signup -> Supabase Auth -> Inbucket (local email capture) ->
+    # /signup -> Supabase Auth -> Mailpit (local email capture) ->
     # /auth/callback -> /dashboard. Single chromium project; #24 expands to
     # the full multi-browser + axe-core matrix.
     #
@@ -237,6 +237,10 @@ jobs:
             echo "SUPABASE_SERVICE_ROLE_KEY=$(echo "$status" | grep '^SERVICE_ROLE_KEY=' | cut -d= -f2- | tr -d '\"')"
             echo "DATABASE_URL=$(echo "$status" | grep '^DB_URL='                        | cut -d= -f2- | tr -d '\"')"
             echo "NEXT_PUBLIC_SITE_ORIGIN=http://localhost:3000"
+            # Supabase ships Mailpit under the legacy container name
+            # `supabase_inbucket_*`. Keep both env names for tooling that
+            # reads either; the helper prefers MAILPIT_BASE_URL.
+            echo "MAILPIT_BASE_URL=http://127.0.0.1:54324"
             echo "INBUCKET_BASE_URL=http://127.0.0.1:54324"
           } >> "$GITHUB_ENV"
 
@@ -260,36 +264,53 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      - name: Smoke-test the Supabase -> Inbucket SMTP wiring
-        # Independent of any app code: triggers a magic-link email via the
-        # Auth admin API and polls Inbucket directly. If this fails, the
-        # GoTrue <-> Inbucket SMTP integration is broken at the Supabase
-        # stack level -- the Playwright failure mode would otherwise be
-        # mis-attributed to our /signup form or action.
+      - name: Smoke-test the Supabase -> Mailpit SMTP wiring
+        # Independent of any app code: hits the public `/auth/v1/otp` endpoint
+        # (the same one supabase-js `signInWithOtp` calls) and polls Mailpit's
+        # REST API for the recipient.
+        #
+        # IMPORTANT (post-PR-#41 finding): Supabase's "Inbucket" container is
+        # now Mailpit. The legacy `supabase_inbucket_*` container name + 54324
+        # port are kept for backward compat, but the REST API is Mailpit's:
+        #   GET /api/v1/search?query=to:<addr>
+        #   GET /api/v1/messages
+        #   GET /api/v1/message/<id>
+        # (Inbucket's `/api/v1/mailbox/<name>` returns 404 because it doesn't
+        # exist in Mailpit -- which is why every previous smoke attempt
+        # mis-attributed delivery failures.)
+        #
+        # ALSO: `/auth/v1/admin/generate_link` generates a link but does NOT
+        # send email (the `confirmation_sent_at` in its response is a user-
+        # creation timestamp, not an SMTP-send timestamp). We use the public
+        # OTP endpoint instead, which definitively triggers an SMTP send.
         run: |
           set -euo pipefail
-          echo "Sending magic-link via admin API to smoke@test.local..."
-          curl -sS -o /tmp/admin-resp.json -w "HTTP %{http_code}\n" \
-            -X POST "${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/generate_link" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+          smoke_email="smoke-$(date +%s)@test.local"
+          echo "Triggering signInWithOtp for ${smoke_email} via /auth/v1/otp..."
+          curl -sS -o /tmp/otp-resp.json -w "HTTP %{http_code}\n" \
+            -X POST "${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/otp" \
+            -H "apikey: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}" \
             -H "Content-Type: application/json" \
-            -d '{"type":"magiclink","email":"smoke@test.local"}' || true
-          echo "--- admin generate_link response ---"
-          cat /tmp/admin-resp.json || true
+            -d "{\"email\":\"${smoke_email}\",\"create_user\":true}" || true
+          echo "--- /auth/v1/otp response ---"
+          cat /tmp/otp-resp.json || true
           echo "--- end ---"
-          echo "Polling Inbucket for mailbox 'smoke'..."
+          query_url=$(printf 'http://127.0.0.1:54324/api/v1/search?query=to:%s' "$smoke_email")
+          echo "Polling Mailpit search at $query_url ..."
           for i in $(seq 1 30); do
-            response=$(curl -sf "http://127.0.0.1:54324/api/v1/mailbox/smoke" 2>/dev/null || echo "[]")
-            count=$(echo "$response" | python3 -c 'import sys,json; data=json.load(sys.stdin); print(len(data) if isinstance(data,list) else 0)' 2>/dev/null || echo "0")
+            response=$(curl -sf "$query_url" 2>/dev/null || echo '{"messages":[]}')
+            count=$(echo "$response" | python3 -c 'import sys,json; data=json.load(sys.stdin); print(len(data.get("messages") or []))' 2>/dev/null || echo "0")
             if [ "$count" -gt 0 ]; then
-              echo "SMTP delivery to Inbucket works (${i}s, ${count} message(s))."
+              echo "SMTP delivery to Mailpit works (${i}s, ${count} message(s))."
               echo "$response" | python3 -m json.tool || true
               exit 0
             fi
             sleep 1
           done
-          echo "::error::SMTP smoke test failed -- no email landed in Inbucket within 30s."
+          echo "::error::SMTP smoke test failed -- no email landed in Mailpit within 30s."
+          echo "::group::Mailpit /api/v1/messages snapshot"
+          curl -sf "http://127.0.0.1:54324/api/v1/messages" | python3 -m json.tool || echo "(unreachable)"
+          echo "::endgroup::"
           echo "::group::Listing all containers"
           docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'
           echo "::endgroup::"
@@ -338,13 +359,13 @@ jobs:
         if: failure()
         run: tail -200 /tmp/next-server.log || true
 
-      - name: Dump Inbucket state on failure
+      - name: Dump Mailpit + Supabase Auth state on failure
         if: failure()
         run: |
-          echo "::group::Inbucket mailbox list"
-          curl -sf http://127.0.0.1:54324/api/v1/mailbox || echo "(no listing endpoint, or empty)"
+          echo "::group::Mailpit messages (latest)"
+          curl -sf http://127.0.0.1:54324/api/v1/messages | python3 -m json.tool || echo "(unreachable)"
           echo "::endgroup::"
-          echo "::group::Inbucket service log (last 200 lines)"
+          echo "::group::Mailpit service log (last 200 lines)"
           docker ps --filter "name=supabase_inbucket" --format '{{.Names}}' | head -1 | xargs -r -I{} docker logs --tail 200 {}
           echo "::endgroup::"
           echo "::group::Supabase Auth service log (last 200 lines)"
