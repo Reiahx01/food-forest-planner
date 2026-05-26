@@ -6,3 +6,4 @@
  * Adding a new table = drop in `db/schema/<name>.ts` + add the re-export.
  */
 export * from './accounts';
+export * from './properties';

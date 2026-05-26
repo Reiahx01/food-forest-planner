@@ -13,9 +13,10 @@ vi.mock('next/navigation', () => ({
 
 import { redirect } from 'next/navigation';
 
+import OnboardingPage from './page';
+
 import { getCurrentAccount } from '@/lib/auth/session';
 
-import OnboardingPage from './page';
 
 const getCurrentAccountMock = vi.mocked(getCurrentAccount);
 const redirectMock = vi.mocked(redirect);

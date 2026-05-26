@@ -10,6 +10,14 @@ describe('app/components/Nav', () => {
     expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
   });
 
+  test('shows /properties for every role', () => {
+    render(<Nav accountRole="hobbyist" />);
+    expect(screen.getByRole('link', { name: /properties/i })).toHaveAttribute(
+      'href',
+      '/properties',
+    );
+  });
+
   test('shows the /clients link for pro users', () => {
     render(<Nav accountRole="pro" />);
     expect(screen.getByRole('link', { name: /clients/i })).toBeInTheDocument();
