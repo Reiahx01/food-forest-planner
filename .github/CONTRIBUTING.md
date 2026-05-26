@@ -41,6 +41,23 @@ The full local battery should be green before you push. CI runs the same four ch
 - **RLS** is enabled on every table (per ADR-0003). Each new schema file ships its own policies in the same migration; PRs that add a table without RLS won't merge.
 - **PostGIS** is enabled in `0000_init.sql`; geometry columns (e.g. `parcel_outline` in `properties`, #10) use `geometry(Polygon, 4326)`.
 
+### Running the app in Docker (self-hosters)
+
+The project ships a multi-stage `Dockerfile` for the Next.js app. Supabase is run separately (via `npx supabase start` locally, or against a hosted/self-hosted Supabase project in production).
+
+```bash
+docker build -t food-forest-planner .
+
+docker run --rm -p 3000:3000 \
+  -e NEXT_PUBLIC_SUPABASE_URL=... \
+  -e NEXT_PUBLIC_SUPABASE_ANON_KEY=... \
+  -e SUPABASE_SERVICE_ROLE_KEY=... \
+  -e DATABASE_URL=... \
+  food-forest-planner
+```
+
+The image relies on Next.js's `output: 'standalone'` (set in `next.config.ts`) -- runtime image is ~150 MB and runs as an unprivileged `nextjs` user.
+
 ## Project structure
 
 ```

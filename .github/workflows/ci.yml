@@ -62,6 +62,15 @@ jobs:
     # ADR-0001 + #4: integration tests run against the local Supabase stack
     # rather than pg-mem. Same Postgres major version, same RLS engine, same
     # PostGIS as prod -- the only difference is who's hosting the box.
+    #
+    # Docker image cache (this PR): `supabase start` pulls ~10 images
+    # (postgres+postgis, gotrue, postgrest, storage-api, realtime, studio,
+    # inbucket, kong, edge-runtime, postgres-meta). Without caching that's
+    # ~3-5 min of network on every run. We `docker save` them to a tar
+    # bundle once and `docker load` on subsequent runs. The cache key is
+    # bound to `package-lock.json` (CLI version pin -> image tags) and
+    # `supabase/config.toml` (postgres major_version pin), so any version
+    # bump invalidates cleanly.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,25 +78,59 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+
+      - name: Restore Supabase Docker image cache
+        id: docker-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/supabase-images
+          key: supabase-images-${{ runner.os }}-${{ hashFiles('package-lock.json', 'supabase/config.toml') }}
+          restore-keys: |
+            supabase-images-${{ runner.os }}-
+
+      - name: Load cached Docker images
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: |
+          shopt -s nullglob
+          for tar in /tmp/supabase-images/*.tar; do
+            echo "::group::docker load $tar"
+            docker load -i "$tar"
+            echo "::endgroup::"
+          done
+
       - name: Start local Supabase (Postgres + PostGIS + Auth + Storage)
         run: npx supabase start --workdir .
+
+      - name: Save Supabase Docker images for the next run
+        if: steps.docker-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/supabase-images
+          # Save every supabase-pulled image. Filter by the registry prefixes
+          # the CLI uses so we don't bloat the cache with unrelated images
+          # the runner happens to have pre-baked.
+          docker images --format '{{.Repository}}:{{.Tag}}' \
+            | grep -E '^(public\.ecr\.aws/supabase/|supabase/|postgrest/|inbucket/|kong:|library/kong)' \
+            | while read -r img; do
+                safe=$(echo "$img" | tr '/:' '__')
+                echo "::group::docker save $img"
+                docker save "$img" -o "/tmp/supabase-images/${safe}.tar"
+                echo "::endgroup::"
+              done
+          du -sh /tmp/supabase-images || true
+
       - name: Capture local Supabase credentials into the job env
         run: |
-          # `supabase status -o env` prints `KEY="value"` pairs. Filter to the
-          # ones our code reads, then append to GITHUB_ENV so subsequent steps
-          # see them. The DB URL is constructed from the printed db.port.
-          npx supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=' >> "$GITHUB_ENV"
+          status=$(npx supabase status -o env)
           {
-            echo "NEXT_PUBLIC_SUPABASE_URL=$(npx supabase status -o env | grep '^API_URL=' | cut -d= -f2- | tr -d '\"')"
-            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(npx supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '\"')"
-            echo "SUPABASE_SERVICE_ROLE_KEY=$(npx supabase status -o env | grep '^SERVICE_ROLE_KEY=' | cut -d= -f2- | tr -d '\"')"
-            echo "DATABASE_URL=$(npx supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')"
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(echo "$status" | grep '^API_URL='          | cut -d= -f2- | tr -d '\"')"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(echo "$status" | grep '^ANON_KEY='    | cut -d= -f2- | tr -d '\"')"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$(echo "$status" | grep '^SERVICE_ROLE_KEY=' | cut -d= -f2- | tr -d '\"')"
+            echo "DATABASE_URL=$(echo "$status" | grep '^DB_URL='                       | cut -d= -f2- | tr -d '\"')"
           } >> "$GITHUB_ENV"
       - name: Apply migrations
         run: npm run db:migrate
       - name: Verify PostGIS is enabled (acceptance criterion from #4)
-        run: |
-          PGPASSWORD=postgres psql "$DATABASE_URL" -c "SELECT PostGIS_Version();"
+        run: psql "$DATABASE_URL" -c "SELECT PostGIS_Version();"
       - name: Run integration tests
         env:
           IS_INTEGRATION: "1"

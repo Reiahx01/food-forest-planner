@@ -1,0 +1,39 @@
+# Keep the build context small + reproducible. Anything matched here will
+# not be sent to the Docker daemon, so it can't end up in any layer.
+
+# Build output / dependency caches
+node_modules
+.next
+.turbo
+coverage
+*.tsbuildinfo
+
+# VCS + CI metadata
+.git
+.github
+.gitignore
+
+# Editor / OS scratch
+.vscode
+.idea
+.DS_Store
+
+# Tests + fixtures (the production image doesn't need them)
+**/*.test.ts
+**/*.test.tsx
+eslint.config.test.ts
+vitest.config.ts
+vitest.setup.ts
+
+# Supabase local-only artifacts (Postgres + Auth + Storage are not shipped
+# inside the app image -- run `supabase start` separately).
+supabase/.temp
+supabase/.branches
+
+# Secrets -- only `.env.example` is checked in, and even that has no values.
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel
