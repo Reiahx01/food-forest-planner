@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import { expect, test } from '@playwright/test';
 
-import { extractMagicLink, getMessage, mailboxFor, purgeMailbox, waitForMessage } from './helpers/inbucket';
+import {
+  dumpInbucketState,
+  extractMagicLink,
+  getMessage,
+  purgeMailbox,
+  waitForMessageTo,
+} from './helpers/inbucket';
 
 /**
  * #5 Playwright follow-up: full magic-link signup happy path.
@@ -16,17 +22,15 @@ import { extractMagicLink, getMessage, mailboxFor, purgeMailbox, waitForMessage 
  *   - /dashboard server component (RLS-respecting read of the user's row)
  *
  * Each spec uses a unique `e2e-<uuid>@test.local` so parallel runs don't
- * step on each other's mailboxes. The unauth-redirect case is the simpler
- * happy path of the same flow run in reverse.
+ * step on each other's mailboxes.
  */
 
 test.describe('signup magic-link happy path', () => {
   test('email -> Inbucket -> callback -> /dashboard with role=hobbyist', async ({
     page,
     request,
-  }) => {
+  }, testInfo) => {
     const email = `e2e-${randomUUID()}@test.local`;
-    const mailbox = mailboxFor(email);
 
     await test.step('submit the signup form', async () => {
       await page.goto('/signup');
@@ -39,10 +43,18 @@ test.describe('signup magic-link happy path', () => {
       await expect(page.getByText(email)).toBeVisible();
     });
 
-    const magicLink = await test.step('retrieve the magic link from Inbucket', async () => {
-      const header = await waitForMessage(request, mailbox);
-      const message = await getMessage(request, mailbox, header.id);
-      return extractMagicLink(message);
+    const { mailbox, magicLink } = await test.step('retrieve the magic link from Inbucket', async () => {
+      try {
+        const { mailbox: found, header } = await waitForMessageTo(request, email);
+        const message = await getMessage(request, found, header.id);
+        return { mailbox: found, magicLink: extractMagicLink(message) };
+      } catch (err) {
+        // Attach the full Inbucket state so the failure is debuggable from
+        // the trace alone -- no need to reproduce locally.
+        const state = await dumpInbucketState(request);
+        await testInfo.attach('inbucket-state.json', { body: state, contentType: 'application/json' });
+        throw err;
+      }
     });
 
     await test.step('follow the link and land on /dashboard', async () => {

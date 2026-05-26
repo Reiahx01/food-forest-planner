@@ -155,7 +155,15 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Both `127.0.0.1` and `localhost` are listed so the cookie origin stays consistent
+# regardless of which hostname Playwright / CI / dev-tools happens to use.
+additional_redirect_urls = [
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3000/**",
+  "http://localhost:3000",
+  "http://localhost:3000/**",
+  "https://127.0.0.1:3000",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -219,9 +227,13 @@ enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
-# Confirmation IS the magic link (#5) -- the user clicks the link in the
-# email and that both confirms their address and signs them in.
-enable_confirmations = true
+# Magic-link signup (#5) does NOT need `enable_confirmations = true` --
+# the click on the magic link IS the auth. Forcing confirmations here
+# changes which email template Supabase fires for `signInWithOtp` and
+# breaks the v0.1.0 Playwright happy path (PR #39 -> follow-up fix).
+# Password signup (#8) re-enables this with breach-check + lockout
+# protection on top.
+enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
