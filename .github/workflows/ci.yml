@@ -295,6 +295,19 @@ jobs:
         if: failure()
         run: tail -200 /tmp/next-server.log || true
 
+      - name: Dump Inbucket state on failure
+        if: failure()
+        run: |
+          echo "::group::Inbucket mailbox list"
+          curl -sf http://127.0.0.1:54324/api/v1/mailbox || echo "(no listing endpoint, or empty)"
+          echo "::endgroup::"
+          echo "::group::Inbucket service log (last 200 lines)"
+          docker ps --filter "name=supabase_inbucket" --format '{{.Names}}' | head -1 | xargs -r -I{} docker logs --tail 200 {}
+          echo "::endgroup::"
+          echo "::group::Supabase Auth service log (last 200 lines)"
+          docker ps --filter "name=supabase_auth" --format '{{.Names}}' | head -1 | xargs -r -I{} docker logs --tail 200 {}
+          echo "::endgroup::"
+
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop --workdir . --no-backup
