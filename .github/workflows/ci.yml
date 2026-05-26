@@ -44,8 +44,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
-  test:
-    name: Vitest (unit + integration)
+  unit:
+    name: Vitest (unit)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,9 +55,46 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      # NOTE: integration tests against ephemeral Supabase land in issue #4.
-      # When they do, add `npx supabase start` before `npm test` and
-      # `npx supabase stop` after.
+
+  integration:
+    name: Vitest (integration, real Supabase)
+    runs-on: ubuntu-latest
+    # ADR-0001 + #4: integration tests run against the local Supabase stack
+    # rather than pg-mem. Same Postgres major version, same RLS engine, same
+    # PostGIS as prod -- the only difference is who's hosting the box.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Start local Supabase (Postgres + PostGIS + Auth + Storage)
+        run: npx supabase start --workdir .
+      - name: Capture local Supabase credentials into the job env
+        run: |
+          # `supabase status -o env` prints `KEY="value"` pairs. Filter to the
+          # ones our code reads, then append to GITHUB_ENV so subsequent steps
+          # see them. The DB URL is constructed from the printed db.port.
+          npx supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|DB_URL)=' >> "$GITHUB_ENV"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(npx supabase status -o env | grep '^API_URL=' | cut -d= -f2- | tr -d '\"')"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(npx supabase status -o env | grep '^ANON_KEY=' | cut -d= -f2- | tr -d '\"')"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$(npx supabase status -o env | grep '^SERVICE_ROLE_KEY=' | cut -d= -f2- | tr -d '\"')"
+            echo "DATABASE_URL=$(npx supabase status -o env | grep '^DB_URL=' | cut -d= -f2- | tr -d '\"')"
+          } >> "$GITHUB_ENV"
+      - name: Apply migrations
+        run: npm run db:migrate
+      - name: Verify PostGIS is enabled (acceptance criterion from #4)
+        run: |
+          PGPASSWORD=postgres psql "$DATABASE_URL" -c "SELECT PostGIS_Version();"
+      - name: Run integration tests
+        env:
+          IS_INTEGRATION: "1"
+        run: npm test
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop --workdir . --no-backup
 
   build:
     name: Next build (SSG)

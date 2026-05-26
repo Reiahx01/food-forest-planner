@@ -9,18 +9,37 @@ Thanks for considering a contribution. This project is built in the open under A
 git clone git@github.com:<your-username>/food-forest-planner.git
 cd food-forest-planner
 
-# 2. Install + boot
+# 2. Install + boot the local Supabase stack (Docker required)
 npm install
-npm run dev   # http://localhost:3000
+npm run db:start       # boots Postgres + PostGIS + Auth + Storage in Docker
+npm run db:migrate     # applies supabase/migrations/*.sql
 
-# 3. Run the test battery before pushing (with dev server STOPPED)
+# 3. Copy the printed URL + keys into `.env.local`
+cp .env.example .env.local
+npm run db:status      # prints API_URL / ANON_KEY / SERVICE_ROLE_KEY / DB_URL
+
+# 4. Boot the Next.js dev server
+npm run dev            # http://localhost:3000
+
+# 5. Run the test battery before pushing (with dev server STOPPED)
 npm run typecheck
 npm run lint
-npm test
+npm test               # unit tests only -- IS_INTEGRATION unset
+IS_INTEGRATION=1 npm test   # add the integration tests; requires db:start running
 npm run build
+
+# 6. Tear down the local stack when done
+npm run db:stop
 ```
 
-The full local battery should be green before you push. CI runs the same four checks and gates merges on them.
+The full local battery should be green before you push. CI runs the same four checks on every merge to `main`, plus an `integration` job that boots a real Supabase locally and runs the IS_INTEGRATION=1 path.
+
+### Database conventions
+
+- **Migrations** are hand-written SQL under `supabase/migrations/<NNNN>_<name>.sql`. The Supabase CLI is the single migration runner -- `npm run db:migrate` (incremental) or `npm run db:reset` (drop + reapply).
+- **Drizzle** is the typed-query layer (`db/schema/`, `db/client.ts`). When a table changes, run `npm run db:generate` to emit the matching migration into `supabase/migrations/`, then commit both the schema file and the generated SQL.
+- **RLS** is enabled on every table (per ADR-0003). Each new schema file ships its own policies in the same migration; PRs that add a table without RLS won't merge.
+- **PostGIS** is enabled in `0000_init.sql`; geometry columns (e.g. `parcel_outline` in `properties`, #10) use `geometry(Polygon, 4326)`.
 
 ## Project structure
 
