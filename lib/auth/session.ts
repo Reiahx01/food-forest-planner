@@ -56,7 +56,7 @@ export async function getCurrentAccount(): Promise<
 
   const accountResult = await supabase
     .from('accounts')
-    .select('id, email, role, display_name, created_at, updated_at')
+    .select('id, email, role, display_name, onboarded_at, created_at, updated_at')
     .eq('id', userResult.data.user.id)
     .single();
   if (accountResult.error || !accountResult.data) return null;
@@ -67,6 +67,7 @@ export async function getCurrentAccount(): Promise<
     email: string;
     role: 'hobbyist' | 'pro';
     display_name: string | null;
+    onboarded_at: string | null;
     created_at: string;
     updated_at: string;
   };
@@ -78,6 +79,7 @@ export async function getCurrentAccount(): Promise<
       email: row.email,
       role: row.role,
       displayName: row.display_name,
+      onboardedAt: row.onboarded_at ? new Date(row.onboarded_at) : null,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     },

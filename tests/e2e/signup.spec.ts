@@ -54,17 +54,32 @@ test.describe('signup magic-link happy path', () => {
     const message = await getMessage(request, header.ID);
     const magicLink = extractMagicLink(message);
 
-    await test.step('follow the link and land on /dashboard', async () => {
+    await test.step('follow the link and land on /onboarding (first-sign-in #6)', async () => {
       await page.goto(magicLink);
+      // The callback redirects to /dashboard, then the proxy redirects on to
+      // /onboarding because onboarded_at is still null at this point.
+      await expect(page).toHaveURL(/\/onboarding(\?|$)/);
+      await expect(
+        page.getByRole('heading', { name: /how will you use/i }),
+      ).toBeVisible();
+    });
+
+    await test.step('pick hobbyist -> /dashboard', async () => {
+      await page.getByRole('button', { name: /designing for myself/i }).click();
       await expect(page).toHaveURL(/\/dashboard(\?|$)/);
       await expect(page.getByRole('heading', { name: new RegExp(`Hi ${escapeRegex(email)}`) })).toBeVisible();
       await expect(page.getByText(/role:\s*hobbyist/i)).toBeVisible();
     });
 
-    await test.step('refresh keeps the session', async () => {
+    await test.step('refresh keeps the session AND skips onboarding (no loop)', async () => {
       await page.reload();
       await expect(page).toHaveURL(/\/dashboard(\?|$)/);
       await expect(page.getByRole('heading', { name: new RegExp(`Hi ${escapeRegex(email)}`) })).toBeVisible();
+    });
+
+    await test.step('directly visiting /onboarding after onboarding redirects forward', async () => {
+      await page.goto('/onboarding');
+      await expect(page).toHaveURL(/\/dashboard(\?|$)/);
     });
 
     await deleteMessage(request, header.ID);

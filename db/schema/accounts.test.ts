@@ -15,8 +15,13 @@ describe('db/schema/accounts — typed contract', () => {
     expect(accounts.email.name).toBe('email');
     expect(accounts.role.name).toBe('role');
     expect(accounts.displayName.name).toBe('display_name');
+    expect(accounts.onboardedAt.name).toBe('onboarded_at');
     expect(accounts.createdAt.name).toBe('created_at');
     expect(accounts.updatedAt.name).toBe('updated_at');
+  });
+
+  test('onboarded_at is nullable (null = not yet onboarded)', () => {
+    expect(accounts.onboardedAt.notNull).toBe(false);
   });
 
   test('role column is required and defaults to hobbyist', () => {

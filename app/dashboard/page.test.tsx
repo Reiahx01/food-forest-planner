@@ -30,7 +30,7 @@ describe('app/dashboard/page — authenticated landing', () => {
     expect(redirectMock).toHaveBeenCalledWith('/signup');
   });
 
-  test('renders a greeting with the user email when authenticated', async () => {
+  test('redirects to /onboarding when authenticated but not yet onboarded', async () => {
     getCurrentAccountMock.mockResolvedValue({
       user: { id: 'u-1', email: 'a@b.co' } as never,
       account: {
@@ -38,6 +38,25 @@ describe('app/dashboard/page — authenticated landing', () => {
         email: 'a@b.co',
         role: 'hobbyist',
         displayName: null,
+        onboardedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    await expect(DashboardPage()).rejects.toThrow(/NEXT_REDIRECT:\/onboarding/);
+    expect(redirectMock).toHaveBeenCalledWith('/onboarding');
+  });
+
+  test('renders a greeting with the user email when authenticated + onboarded', async () => {
+    getCurrentAccountMock.mockResolvedValue({
+      user: { id: 'u-1', email: 'a@b.co' } as never,
+      account: {
+        id: 'u-1',
+        email: 'a@b.co',
+        role: 'hobbyist',
+        displayName: null,
+        onboardedAt: new Date('2026-01-01T00:00:00Z'),
         createdAt: new Date(),
         updatedAt: new Date(),
       },

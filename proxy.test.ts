@@ -1,8 +1,14 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+const fromBuilder = {
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  single: vi.fn(),
+};
 const supabaseStub = {
   auth: { getUser: vi.fn() },
+  from: vi.fn(() => fromBuilder),
 };
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(() => supabaseStub),
@@ -18,6 +24,10 @@ beforeEach(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   process.env.DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
   supabaseStub.auth.getUser.mockReset();
+  supabaseStub.from.mockClear();
+  fromBuilder.select.mockClear().mockReturnThis();
+  fromBuilder.eq.mockClear().mockReturnThis();
+  fromBuilder.single.mockReset();
 });
 
 afterEach(() => {
@@ -38,19 +48,30 @@ function req(path: string): FakeNextRequest {
   return new FakeNextRequest(new URL(`http://localhost:3000${path}`));
 }
 
-describe('proxy.ts — auth-gate for protected paths (Next 16 replacement for middleware.ts)', () => {
-  test('matcher excludes _next assets so the proxy doesn\'t fire on every static file', () => {
+function withAuthedUser(id = 'u-1') {
+  supabaseStub.auth.getUser.mockResolvedValue({
+    data: { user: { id, email: 'a@b.co' } },
+    error: null,
+  });
+}
+
+function withAccount(onboardedAt: string | null) {
+  fromBuilder.single.mockResolvedValue({
+    data: { onboarded_at: onboardedAt },
+    error: null,
+  });
+}
+
+describe('proxy.ts — auth gate (Next 16 replacement for middleware.ts)', () => {
+  test('matcher excludes _next assets so the proxy does not fire on every static file', () => {
     const matchers = Array.isArray(config.matcher) ? config.matcher : [config.matcher];
     const matcherStr = matchers.join('|');
-    // The matcher is a negative-lookahead pattern that excludes asset paths.
-    // We assert the exclusion list contains the expected entries; the inclusion
-    // side is "everything else".
     expect(matcherStr).toMatch(/_next\\?\/static/);
     expect(matcherStr).toMatch(/_next\\?\/image/);
     expect(matcherStr).toMatch(/favicon/);
   });
 
-  test('redirects an anonymous request to /signup (with ?next= preserving the path)', async () => {
+  test('anon -> /dashboard redirects to /signup with ?next= preserving the path', async () => {
     supabaseStub.auth.getUser.mockResolvedValue({ data: { user: null }, error: null });
 
     const res = await proxy(req('/dashboard') as never);
@@ -59,25 +80,49 @@ describe('proxy.ts — auth-gate for protected paths (Next 16 replacement for mi
     expect(location).toMatch(/next=%2Fdashboard/);
   });
 
-  test('lets through an authenticated request (no redirect, returns the passthrough response)', async () => {
-    supabaseStub.auth.getUser.mockResolvedValue({
-      data: { user: { id: 'u-1', email: 'a@b.co' } },
-      error: null,
-    });
+  test('authed + onboarded -> /dashboard passes through (no redirect)', async () => {
+    withAuthedUser();
+    withAccount('2026-01-01T00:00:00Z');
 
     const res = await proxy(req('/dashboard') as never);
-    // No location header means the proxy let the request pass through.
     expect(res?.headers.get('location')).toBeNull();
   });
 
-  test('redirect target preserves the request path so users land where they tried to go', async () => {
+  test('authed + NOT onboarded -> /dashboard redirects to /onboarding', async () => {
+    withAuthedUser();
+    withAccount(null);
+
+    const res = await proxy(req('/dashboard') as never);
+    expect(res?.headers.get('location')).toBe('http://localhost:3000/onboarding');
+  });
+
+  test('authed + onboarded -> /onboarding redirects forward to /dashboard', async () => {
+    withAuthedUser();
+    withAccount('2026-01-01T00:00:00Z');
+
+    const res = await proxy(req('/onboarding') as never);
+    expect(res?.headers.get('location')).toBe('http://localhost:3000/dashboard');
+  });
+
+  test('authed + NOT onboarded -> /onboarding passes through (the user belongs here)', async () => {
+    withAuthedUser();
+    withAccount(null);
+
+    const res = await proxy(req('/onboarding') as never);
+    expect(res?.headers.get('location')).toBeNull();
+  });
+
+  test('anon -> /onboarding redirects to /signup', async () => {
+    supabaseStub.auth.getUser.mockResolvedValue({ data: { user: null }, error: null });
+
+    const res = await proxy(req('/onboarding') as never);
+    expect(res?.headers.get('location')).toMatch(/\/signup(\?|$)/);
+  });
+
+  test('?next= survives the /dashboard subpath case', async () => {
     supabaseStub.auth.getUser.mockResolvedValue({ data: { user: null }, error: null });
 
     const res = await proxy(req('/dashboard/properties') as never);
-    const location = res?.headers.get('location') ?? '';
-    expect(location).toContain('/signup');
-    // The eventual UX is "post-signup, send me back to /dashboard/properties".
-    // We carry the intended path via ?next=.
-    expect(location).toMatch(/next=%2Fdashboard%2Fproperties/);
+    expect(res?.headers.get('location')).toMatch(/next=%2Fdashboard%2Fproperties/);
   });
 });
