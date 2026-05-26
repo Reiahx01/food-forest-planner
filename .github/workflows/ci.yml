@@ -150,3 +150,42 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+
+  docker-build:
+    name: Docker image (self-hoster guard)
+    runs-on: ubuntu-latest
+    # Guards the Dockerfile against rot. Vercel is the default deploy
+    # target (ADR-0001), but the Dockerfile is the load-bearing artifact
+    # for AGPL self-hosters -- if it breaks silently between merges,
+    # external operators discover that, not us. This job catches it.
+    #
+    # We build with BuildKit + the GitHub Actions cache backend
+    # (`type=gha,mode=max`) so warm builds finish in <30s after the
+    # first cold run populates the cache. Image is not pushed -- no
+    # registry is wired yet; a future release-tag workflow will push
+    # `ghcr.io/<owner>/food-forest-planner:<tag>` from the v0.1.0
+    # release milestone (#28).
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: food-forest-planner:ci
+          cache-from: type=gha,scope=docker-build
+          cache-to: type=gha,scope=docker-build,mode=max
+      - name: Smoke-test the image entrypoint
+        # `docker create` + `inspect` confirms `server.js` is present and
+        # the configured CMD parses, without actually starting the server
+        # (which would need real Supabase env vars). Catches the common
+        # regressions: missing `.next/standalone`, wrong `WORKDIR`, the
+        # `nextjs` user UID not existing, broken multi-stage COPY paths.
+        run: |
+          id=$(docker create food-forest-planner:ci)
+          docker inspect "$id" --format '{{json .Config.Cmd}}'
+          docker export "$id" | tar -tf - | grep -E '^server\.js$|^\.next/static/' | head -5
+          docker rm "$id" >/dev/null
