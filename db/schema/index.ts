@@ -1,13 +1,8 @@
 /**
- * Drizzle schema barrel.
+ * Drizzle schema barrel. Each domain table lives in its own file and is
+ * re-exported here; Drizzle Kit and the runtime client both consume this
+ * barrel via `drizzle.config.ts > schema` and `db/client.ts > * as schema`.
  *
- * Each domain table lives in its own file (`accounts.ts`, `properties.ts`,
- * `designs.ts`, etc.) and is re-exported here. Drizzle Kit reads from this
- * barrel via `drizzle.config.ts > schema`.
- *
- * This file is intentionally empty in #4 — the first real table
- * (`accounts`) lands in #5, properties in #10, and so on. Keeping the barrel
- * exists-but-empty means `drizzle-kit generate` runs successfully now and
- * later contributors can add a schema file without touching the config.
+ * Adding a new table = drop in `db/schema/<name>.ts` + add the re-export.
  */
-export {};
+export * from './accounts';

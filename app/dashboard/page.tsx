@@ -1,0 +1,39 @@
+import { redirect } from 'next/navigation';
+
+import { getCurrentAccount } from '@/lib/auth/session';
+
+/**
+ * Dashboard landing (#5). Intentionally empty -- real surfaces (Properties,
+ * Designs) land in #10 and #13. Today this page exists to:
+ *
+ *   1. Prove the auth round-trip works end-to-end (sign-in -> arrive here).
+ *   2. Provide the unauth -> /signup redirect that `proxy.ts` mirrors at the
+ *      edge for cheap requests.
+ *
+ * The page also calls `getCurrentAccount()` directly (not just relying on the
+ * proxy) so a misconfigured proxy/matcher can't accidentally serve this to an
+ * anon user. Defense in depth.
+ */
+export default async function DashboardPage() {
+  const current = await getCurrentAccount();
+  if (!current) redirect('/signup');
+
+  return (
+    <main className="relative flex min-h-screen flex-col items-center justify-center px-6 py-16">
+      <section
+        className="relative z-10 flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-border-solid bg-surface-glass px-8 py-9 text-center backdrop-blur-md"
+        style={{ boxShadow: 'var(--shadow-panel)' }}
+      >
+        <h1 className="font-display text-3xl font-medium tracking-tight">
+          Hi {current.account.email}
+        </h1>
+        <p className="text-xs uppercase tracking-[0.16em] text-text-gold">
+          Role: {current.account.role}
+        </p>
+        <p className="max-w-sm text-sm text-text-muted">
+          Your dashboard will fill in as Properties (#10) and Designs (#13) ship.
+        </p>
+      </section>
+    </main>
+  );
+}
