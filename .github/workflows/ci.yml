@@ -189,3 +189,112 @@ jobs:
           docker inspect "$id" --format '{{json .Config.Cmd}}'
           docker export "$id" | tar -tf - | grep -E '^server\.js$|^\.next/static/' | head -5
           docker rm "$id" >/dev/null
+
+  e2e:
+    name: Playwright (signup happy-path)
+    runs-on: ubuntu-latest
+    # Closes the #5 acceptance criterion deferred from PR #38. End-to-end:
+    # /signup -> Supabase Auth -> Inbucket (local email capture) ->
+    # /auth/callback -> /dashboard. Single chromium project; #24 expands to
+    # the full multi-browser + axe-core matrix.
+    #
+    # Reuses the Supabase Docker image cache from the integration job, plus
+    # a separate cache for the Playwright browser binaries (~150 MB cold).
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Restore Supabase Docker image cache
+        id: docker-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/supabase-images
+          key: supabase-images-${{ runner.os }}-${{ hashFiles('package-lock.json', 'supabase/config.toml') }}
+          restore-keys: |
+            supabase-images-${{ runner.os }}-
+
+      - name: Load cached Docker images
+        if: steps.docker-cache.outputs.cache-hit == 'true'
+        run: |
+          shopt -s nullglob
+          for tar in /tmp/supabase-images/*.tar; do
+            docker load -i "$tar"
+          done
+
+      - name: Start local Supabase
+        run: npx supabase start --workdir .
+
+      - name: Capture local Supabase credentials
+        run: |
+          status=$(npx supabase status -o env)
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$(echo "$status" | grep '^API_URL='           | cut -d= -f2- | tr -d '\"')"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$(echo "$status" | grep '^ANON_KEY='     | cut -d= -f2- | tr -d '\"')"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$(echo "$status" | grep '^SERVICE_ROLE_KEY=' | cut -d= -f2- | tr -d '\"')"
+            echo "DATABASE_URL=$(echo "$status" | grep '^DB_URL='                        | cut -d= -f2- | tr -d '\"')"
+            echo "NEXT_PUBLIC_SITE_ORIGIN=http://localhost:3000"
+            echo "INBUCKET_BASE_URL=http://127.0.0.1:54324"
+          } >> "$GITHUB_ENV"
+
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      - name: Cache Playwright browser binaries
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browsers (chromium only)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps when binaries were cached
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Build the Next app
+        run: npm run build
+
+      - name: Start the Next app in the background
+        run: |
+          nohup npm run start > /tmp/next-server.log 2>&1 &
+          # Wait for the server to be ready.
+          for i in {1..60}; do
+            if curl -fs http://localhost:3000/ > /dev/null; then
+              echo "next server up after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          curl -fs http://localhost:3000/ > /dev/null
+
+      - name: Run Playwright tests
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: npx playwright test
+
+      - name: Upload Playwright HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
+      - name: Print Next server log on failure
+        if: failure()
+        run: tail -200 /tmp/next-server.log || true
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop --workdir . --no-backup

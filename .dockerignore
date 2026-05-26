@@ -24,6 +24,12 @@ coverage
 eslint.config.test.ts
 vitest.config.ts
 vitest.setup.ts
+playwright.config.ts
+/tests
+/playwright-report
+/test-results
+/blob-report
+/.playwright
 
 # Supabase local-only artifacts (Postgres + Auth + Storage are not shipped
 # inside the app image -- run `supabase start` separately).
