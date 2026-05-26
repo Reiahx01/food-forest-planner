@@ -8,6 +8,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./', import.meta.url)),
+      // The `server-only` package throws when imported outside a Server
+      // Component module graph. Vitest doesn't recreate Next's React Server
+      // Components boundary, so we stub it with the empty module Next ships
+      // for use inside RSC environments.
+      'server-only': fileURLToPath(new URL('./node_modules/server-only/empty.js', import.meta.url)),
     },
   },
   test: {
