@@ -260,6 +260,49 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
+      - name: Smoke-test the Supabase -> Inbucket SMTP wiring
+        # Independent of any app code: triggers a magic-link email via the
+        # Auth admin API and polls Inbucket directly. If this fails, the
+        # GoTrue <-> Inbucket SMTP integration is broken at the Supabase
+        # stack level -- the Playwright failure mode would otherwise be
+        # mis-attributed to our /signup form or action.
+        run: |
+          set -euo pipefail
+          echo "Sending magic-link via admin API to smoke@test.local..."
+          curl -sS -o /tmp/admin-resp.json -w "HTTP %{http_code}\n" \
+            -X POST "${NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/generate_link" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"type":"magiclink","email":"smoke@test.local"}' || true
+          echo "--- admin generate_link response ---"
+          cat /tmp/admin-resp.json || true
+          echo "--- end ---"
+          echo "Polling Inbucket for mailbox 'smoke'..."
+          for i in $(seq 1 30); do
+            response=$(curl -sf "http://127.0.0.1:54324/api/v1/mailbox/smoke" 2>/dev/null || echo "[]")
+            count=$(echo "$response" | python3 -c 'import sys,json; data=json.load(sys.stdin); print(len(data) if isinstance(data,list) else 0)' 2>/dev/null || echo "0")
+            if [ "$count" -gt 0 ]; then
+              echo "SMTP delivery to Inbucket works (${i}s, ${count} message(s))."
+              echo "$response" | python3 -m json.tool || true
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::SMTP smoke test failed -- no email landed in Inbucket within 30s."
+          echo "::group::Listing all containers"
+          docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'
+          echo "::endgroup::"
+          for service in supabase_auth supabase_inbucket; do
+            echo "::group::${service} log (last 150 lines)"
+            docker ps --filter "name=${service}" --format '{{.Names}}' \
+              | head -1 \
+              | xargs -r -I{} docker logs --tail 150 {} 2>&1 \
+              || echo "(no ${service} container found)"
+            echo "::endgroup::"
+          done
+          exit 1
+
       - name: Build the Next app
         run: npm run build
 

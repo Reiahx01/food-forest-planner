@@ -23,6 +23,12 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  // 60s per test -- accounts for the 20s Inbucket poll plus the full
+  // browser-driven flow (form submit + callback redirect + dashboard render
+  // + reload). Test timeout MUST exceed the poll timeout or Playwright kills
+  // the request context mid-poll and the real error gets buried under
+  // "Target page, context or browser has been closed".
+  timeout: 60_000,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',

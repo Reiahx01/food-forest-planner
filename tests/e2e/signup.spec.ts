@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 
 import {
-  dumpInbucketState,
   extractMagicLink,
   getMessage,
   purgeMailbox,
@@ -29,7 +28,7 @@ test.describe('signup magic-link happy path', () => {
   test('email -> Inbucket -> callback -> /dashboard with role=hobbyist', async ({
     page,
     request,
-  }, testInfo) => {
+  }) => {
     const email = `e2e-${randomUUID()}@test.local`;
 
     await test.step('submit the signup form', async () => {
@@ -43,19 +42,15 @@ test.describe('signup magic-link happy path', () => {
       await expect(page.getByText(email)).toBeVisible();
     });
 
-    const { mailbox, magicLink } = await test.step('retrieve the magic link from Inbucket', async () => {
-      try {
-        const { mailbox: found, header } = await waitForMessageTo(request, email);
-        const message = await getMessage(request, found, header.id);
-        return { mailbox: found, magicLink: extractMagicLink(message) };
-      } catch (err) {
-        // Attach the full Inbucket state so the failure is debuggable from
-        // the trace alone -- no need to reproduce locally.
-        const state = await dumpInbucketState(request);
-        await testInfo.attach('inbucket-state.json', { body: state, contentType: 'application/json' });
-        throw err;
-      }
-    });
+    // The CI workflow's "Dump Inbucket state on failure" step handles the
+    // post-failure diagnostics (it dumps the supabase_auth + supabase_inbucket
+    // container logs which are far more useful than the REST API state).
+    const { mailbox, header } = await test.step(
+      'retrieve the magic link from Inbucket',
+      async () => waitForMessageTo(request, email),
+    );
+    const message = await getMessage(request, mailbox, header.id);
+    const magicLink = extractMagicLink(message);
 
     await test.step('follow the link and land on /dashboard', async () => {
       await page.goto(magicLink);

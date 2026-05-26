@@ -72,7 +72,7 @@ async function listMailboxes(request: APIRequestContext): Promise<string[]> {
 export async function waitForMessageTo(
   request: APIRequestContext,
   email: string,
-  timeoutMs = 30_000,
+  timeoutMs = 20_000,
   intervalMs = 500,
 ): Promise<{ mailbox: string; header: InbucketMessageHeader }> {
   const expected = mailboxFor(email);
@@ -142,21 +142,4 @@ export async function purgeMailbox(
   mailbox: string,
 ): Promise<void> {
   await request.delete(`${INBUCKET_BASE}/api/v1/mailbox/${mailbox}`).catch(() => undefined);
-}
-
-/**
- * Dump every known mailbox + its message headers as a single JSON string.
- * Used for failure diagnostics when the happy-path fails to find an email.
- */
-export async function dumpInbucketState(request: APIRequestContext): Promise<string> {
-  const mailboxes = await listMailboxes(request);
-  const out: Record<string, unknown> = { base: INBUCKET_BASE, mailboxes: [] };
-  for (const name of mailboxes) {
-    const messages = await fetchMailbox(request, name);
-    (out.mailboxes as { name: string; messages: InbucketMessageHeader[] }[]).push({
-      name,
-      messages,
-    });
-  }
-  return JSON.stringify(out, null, 2);
 }
