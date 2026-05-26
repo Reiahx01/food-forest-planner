@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
 
+import { chooseRole } from './actions';
+
 import { getCurrentAccount } from '@/lib/auth/session';
 
-import { chooseRole } from './actions';
 
 /**
  * One-screen onboarding flow (#6). Two large brand-styled cards forming a

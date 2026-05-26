@@ -19,6 +19,12 @@ export function Nav({ accountRole }: { accountRole: AccountRole }) {
       >
         Dashboard
       </Link>
+      <Link
+        href="/properties"
+        className="text-xs uppercase tracking-[0.18em] text-text-muted hover:text-state-hover"
+      >
+        Properties
+      </Link>
       {accountRole === 'pro' ? (
         <Link
           href="/clients"
