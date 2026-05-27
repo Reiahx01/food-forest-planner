@@ -39,8 +39,14 @@ export interface PropertySummary {
   createdAt: Date;
 }
 
+export interface ParcelOutline {
+  type: 'Polygon';
+  coordinates: [number, number][][];
+}
+
 export interface PropertyDetail extends PropertySummary {
   center: { lat: number; lon: number } | null;
+  parcelOutline: ParcelOutline | null;
 }
 
 /** List the current user's Properties. RLS filters automatically. */
@@ -78,7 +84,7 @@ export async function getProperty(id: string): Promise<PropertyDetail | null> {
   const supabase = createServerSupabaseClient({ cookies: await nextCookieAdapter() });
   const { data, error } = await supabase
     .from('properties')
-    .select('id, name, address, usda_zone, created_at, center')
+    .select('id, name, address, usda_zone, created_at, center, parcel_outline')
     .eq('id', id)
     .single();
   if (error || !data) return null;
@@ -89,8 +95,9 @@ export async function getProperty(id: string): Promise<PropertyDetail | null> {
     usda_zone: string | null;
     created_at: string;
     // supabase-js returns PostGIS geometry as GeoJSON when the column is
-    // selected directly; the shape is `{ type: 'Point', coordinates: [lon, lat] }`.
+    // selected directly; the shape is `{ type: 'Point' | 'Polygon', coordinates: ... }`.
     center: { type: 'Point'; coordinates: [number, number] } | null;
+    parcel_outline: ParcelOutline | null;
   };
   return {
     id: r.id,
@@ -101,6 +108,7 @@ export async function getProperty(id: string): Promise<PropertyDetail | null> {
     center: r.center
       ? { lon: r.center.coordinates[0], lat: r.center.coordinates[1] }
       : null,
+    parcelOutline: r.parcel_outline,
   };
 }
 

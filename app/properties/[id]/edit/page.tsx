@@ -36,7 +36,12 @@ export default async function EditPropertyPage({
         >
           <PropertyForm
             action={action}
-            initial={{ name: property.name, address: property.address }}
+            initial={{
+              name: property.name,
+              address: property.address,
+              center: property.center,
+              outline: property.parcelOutline,
+            }}
             submitLabel="Save changes"
           />
         </section>

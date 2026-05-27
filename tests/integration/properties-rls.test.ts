@@ -97,6 +97,35 @@ integrationOnly('integration: properties RLS against real Supabase', () => {
     expect(rows).toEqual([]);
   });
 
+  test('parcel_outline persists as a Polygon (round-trips through PostGIS)', async () => {
+    const { data: created } = await admin.auth.admin.createUser({
+      email: `it-${randomUUID()}@test.local`,
+      email_confirm: true,
+    });
+    const user = requireUser(created.user, 'auth user');
+    createdUserIds.push(user.id);
+
+    const wkt =
+      'POLYGON((-122.03 37.33, -122.02 37.33, -122.02 37.34, -122.03 37.34, -122.03 37.33))';
+
+    const { data: inserted, error: insertErr } = await admin
+      .from('properties')
+      .insert({
+        owner_account_id: user.id,
+        name: 'Outline plot',
+        parcel_outline: wkt,
+      })
+      .select('parcel_outline')
+      .single();
+    expect(insertErr).toBeNull();
+
+    // supabase-js returns GeoJSON for geometry SELECTs.
+    const row = inserted as { parcel_outline: { type: string; coordinates: unknown[][] } | null };
+    expect(row.parcel_outline?.type).toBe('Polygon');
+    // First ring has 5 coords (4 corners + closing repeat).
+    expect((row.parcel_outline?.coordinates[0] ?? []).length).toBe(5);
+  });
+
   test('cascade: deleting the owning user removes their properties', async () => {
     const { data: created } = await admin.auth.admin.createUser({
       email: `it-${randomUUID()}@test.local`,
