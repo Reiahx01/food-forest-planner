@@ -65,7 +65,7 @@ export default async function PropertyShowPage({
           </div>
         </header>
 
-        <PropertyMap center={property.center} />
+        <PropertyMap center={property.center} outline={property.parcelOutline} />
 
         <section
           className="rounded-xl border border-border-glass bg-surface-glass px-5 py-4 text-sm text-text-muted backdrop-blur-md"

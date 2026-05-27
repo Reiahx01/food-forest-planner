@@ -37,9 +37,14 @@ vi.mock('@/lib/geo/esri-geocode', () => ({
   geocodeAddress: vi.fn(),
 }));
 
+vi.mock('@/lib/geo/usda-zone', () => ({
+  lookupUsdaZone: vi.fn(),
+}));
+
 import { createProperty, deleteProperty, updateProperty } from './actions';
 
 import { geocodeAddress } from '@/lib/geo/esri-geocode';
+import { lookupUsdaZone } from '@/lib/geo/usda-zone';
 
 
 const ORIGINAL_ENV = { ...process.env };
@@ -56,6 +61,7 @@ beforeEach(() => {
     if (fn !== fromBuilder.single) fn.mockReturnThis();
   }
   vi.mocked(geocodeAddress).mockReset();
+  vi.mocked(lookupUsdaZone).mockReset();
 });
 
 afterEach(() => {
@@ -77,13 +83,14 @@ function form(fields: Record<string, string>): FormData {
 }
 
 describe('app/properties/actions — createProperty', () => {
-  test('geocodes the address, inserts the row, redirects to the show page', async () => {
+  test('geocodes the address, looks up USDA zone, inserts the row', async () => {
     withAuthedUser('u-1');
     vi.mocked(geocodeAddress).mockResolvedValueOnce({
       label: '1 Apple St, Cupertino, CA',
       lat: 37.33,
       lon: -122.03,
     });
+    vi.mocked(lookupUsdaZone).mockResolvedValueOnce('9b');
     fromBuilder.single.mockResolvedValueOnce({ data: { id: 'p-new' }, error: null });
 
     await expect(
@@ -91,14 +98,61 @@ describe('app/properties/actions — createProperty', () => {
     ).rejects.toThrow(/NEXT_REDIRECT:\/properties\/p-new/);
 
     expect(geocodeAddress).toHaveBeenCalledWith('1 Apple St');
-    expect(supabaseStub.from).toHaveBeenCalledWith('properties');
+    expect(lookupUsdaZone).toHaveBeenCalledWith(37.33, -122.03);
     expect(fromBuilder.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         owner_account_id: 'u-1',
         name: 'Home',
         address: '1 Apple St, Cupertino, CA',
         center: expect.stringContaining('POINT(-122.03 37.33)'),
+        usda_zone: '9b',
       }),
+    );
+  });
+
+  test('persists a drawn parcel outline as a WKT POLYGON', async () => {
+    withAuthedUser('u-1');
+    fromBuilder.single.mockResolvedValueOnce({ data: { id: 'p-3' }, error: null });
+
+    const polygon = JSON.stringify({
+      type: 'Polygon',
+      coordinates: [
+        [
+          [-122.03, 37.33],
+          [-122.02, 37.33],
+          [-122.02, 37.34],
+          [-122.03, 37.34],
+          [-122.03, 37.33],
+        ],
+      ],
+    });
+
+    await expect(
+      createProperty(form({ name: 'Outlined', parcel_outline: polygon })),
+    ).rejects.toThrow(/NEXT_REDIRECT/);
+
+    const insertedArg = (fromBuilder.insert.mock.calls[0]?.[0] ?? {}) as Record<string, unknown>;
+    expect(insertedArg.parcel_outline).toBe(
+      'POLYGON((-122.03 37.33, -122.02 37.33, -122.02 37.34, -122.03 37.34, -122.03 37.33))',
+    );
+  });
+
+  test('rejects a malformed parcel outline (not GeoJSON Polygon)', async () => {
+    withAuthedUser('u-1');
+    await expect(
+      createProperty(form({ name: 'Bad', parcel_outline: '{"type":"LineString","coordinates":[]}' })),
+    ).rejects.toThrow(/parcel outline must be a geojson polygon/i);
+    expect(fromBuilder.insert).not.toHaveBeenCalled();
+  });
+
+  test('rejects a polygon with fewer than three corners', async () => {
+    withAuthedUser('u-1');
+    const tiny = JSON.stringify({
+      type: 'Polygon',
+      coordinates: [[[0, 0], [1, 1], [0, 0]]],
+    });
+    await expect(createProperty(form({ name: 'Tiny', parcel_outline: tiny }))).rejects.toThrow(
+      /at least three corners/i,
     );
   });
 
@@ -109,14 +163,28 @@ describe('app/properties/actions — createProperty', () => {
     await expect(createProperty(form({ name: 'Untitled' }))).rejects.toThrow(/NEXT_REDIRECT/);
 
     expect(geocodeAddress).not.toHaveBeenCalled();
-    expect(fromBuilder.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        owner_account_id: 'u-1',
-        name: 'Untitled',
-      }),
-    );
+    expect(lookupUsdaZone).not.toHaveBeenCalled();
     const insertedArg = (fromBuilder.insert.mock.calls[0]?.[0] ?? {}) as Record<string, unknown>;
     expect(insertedArg.center).toBeNull();
+    expect(insertedArg.parcel_outline).toBeNull();
+    expect(insertedArg.usda_zone).toBeNull();
+  });
+
+  test('survives a USDA-zone API outage (zone = null, insert still succeeds)', async () => {
+    withAuthedUser('u-1');
+    vi.mocked(geocodeAddress).mockResolvedValueOnce({
+      label: '1 Apple St',
+      lat: 37.33,
+      lon: -122.03,
+    });
+    vi.mocked(lookupUsdaZone).mockResolvedValueOnce(null);
+    fromBuilder.single.mockResolvedValueOnce({ data: { id: 'p-4' }, error: null });
+
+    await expect(createProperty(form({ name: 'NoZone', address: '1 Apple St' }))).rejects.toThrow(
+      /NEXT_REDIRECT/,
+    );
+    const insertedArg = (fromBuilder.insert.mock.calls[0]?.[0] ?? {}) as Record<string, unknown>;
+    expect(insertedArg.usda_zone).toBeNull();
   });
 
   test('rejects a missing name', async () => {
