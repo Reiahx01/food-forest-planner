@@ -35,7 +35,11 @@ test.describe('signup magic-link happy path', () => {
 
     await test.step('submit the signup form', async () => {
       await page.goto('/signup');
-      await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
+      // Heading was renamed from "Sign in" to "Sign up" in PR #47 when the
+      // signup / signin pages were split. Anchor the match so we match the
+      // page's H1 rather than any cross-link to "Sign in" elsewhere on the
+      // page.
+      await expect(page.getByRole('heading', { level: 1, name: /^sign up$/i })).toBeVisible();
 
       await page.getByLabel(/email/i).fill(email);
       await page.getByRole('button', { name: /send magic link/i }).click();
@@ -91,7 +95,7 @@ test.describe('unauthenticated access', () => {
     await page.context().clearCookies();
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/signup\?next=%2Fdashboard/);
-    await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /^sign up$/i })).toBeVisible();
   });
 });
 
