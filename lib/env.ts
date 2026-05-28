@@ -61,3 +61,28 @@ export function browserEnv(): BrowserEnv {
 export function isMockMode(): boolean {
   return process.env.IS_MOCK_MODE === '1';
 }
+
+/**
+ * The canonical origin used to build absolute URLs in emails (magic-link
+ * `emailRedirectTo`, OG `@id`, sitemap entries, etc.).
+ *
+ * Dev-mode override: when `NODE_ENV === 'development'` we ignore the env var
+ * and force `http://localhost:3000`. This is the single rule that keeps local
+ * magic-link emails clickable when `NEXT_PUBLIC_SITE_ORIGIN` is set to the
+ * production URL (e.g. for prod-env smoke tests). Supabase Auth allow-lists
+ * redirects via `supabase/config.toml`, and the prod URL isn't on that list
+ * for the local stack — so without this rule, the email goes out with the
+ * prod URL, Supabase silently substitutes its `site_url` fallback, and the
+ * link drops the user on `/` with no `?code=` to exchange.
+ *
+ * Trailing slashes are stripped — `https://example.com/` and `https://example.com`
+ * are the same origin, and the double-slash that would otherwise appear in
+ * `${origin}/auth/callback` breaks Supabase's exact-match URL check.
+ */
+export function siteOrigin(): string {
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:3000';
+  }
+  const raw = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? 'http://localhost:3000';
+  return raw.replace(/\/+$/, '');
+}

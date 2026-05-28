@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 /**
  * Landing page — bootstrap brand-identity proof.
  *
@@ -44,17 +46,32 @@ export default function Home() {
         <p className="max-w-md text-center text-sm text-text-muted">
           Building in the open under AGPL-3.0. Follow along on GitHub.
         </p>
-        <a
-          href="https://github.com/Reiahx01/food-forest-planner"
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border-chrome px-5 text-sm font-medium"
-          style={{
-            background: 'var(--gradient-accent-chrome)',
-            color: 'var(--color-text-inverse)',
-            boxShadow: 'var(--shadow-chrome)',
-          }}
-        >
-          View on GitHub
-        </a>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/signup"
+            data-testid="home-cta-signup"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border-chrome px-5 text-sm font-medium"
+            style={{
+              background: 'var(--gradient-accent-chrome)',
+              color: 'var(--color-text-inverse)',
+              boxShadow: 'var(--shadow-chrome)',
+            }}
+          >
+            Get started
+          </Link>
+          <a
+            href="https://github.com/Reiahx01/food-forest-planner"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border-glass bg-surface-raised px-5 text-sm font-medium text-text-primary"
+          >
+            View on GitHub
+          </a>
+        </div>
+        <p className="text-xs text-text-muted">
+          Already have an account?{' '}
+          <Link href="/signin" className="text-text-gold hover:text-state-hover">
+            Sign in
+          </Link>
+        </p>
       </section>
     </main>
   );

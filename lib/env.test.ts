@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { serverEnv, browserEnv } from './env';
+import { serverEnv, browserEnv, siteOrigin } from './env';
 
 const REQUIRED_SERVER_KEYS = [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -81,5 +81,42 @@ describe('lib/env — typed env access for server + browser', () => {
     vi.stubEnv('NODE_ENV', 'production');
 
     expect(() => serverEnv()).toThrow(/IS_MOCK_MODE.*production/i);
+  });
+
+  describe('siteOrigin() — dev-mode override and trailing-slash discipline', () => {
+    test('returns http://localhost:3000 in development, ignoring the env var', () => {
+      vi.stubEnv('NODE_ENV', 'development');
+      process.env.NEXT_PUBLIC_SITE_ORIGIN = 'https://food-forest-planner.vercel.app';
+
+      expect(siteOrigin()).toBe('http://localhost:3000');
+    });
+
+    test('reads NEXT_PUBLIC_SITE_ORIGIN outside development', () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      process.env.NEXT_PUBLIC_SITE_ORIGIN = 'https://food-forest-planner.vercel.app';
+
+      expect(siteOrigin()).toBe('https://food-forest-planner.vercel.app');
+    });
+
+    test('strips a trailing slash so `${origin}/auth/callback` never doubles up', () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      process.env.NEXT_PUBLIC_SITE_ORIGIN = 'https://food-forest-planner.vercel.app/';
+
+      expect(siteOrigin()).toBe('https://food-forest-planner.vercel.app');
+    });
+
+    test('strips multiple trailing slashes (paranoia)', () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      process.env.NEXT_PUBLIC_SITE_ORIGIN = 'https://food-forest-planner.vercel.app///';
+
+      expect(siteOrigin()).toBe('https://food-forest-planner.vercel.app');
+    });
+
+    test('falls back to localhost when the var is unset outside development', () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      delete process.env.NEXT_PUBLIC_SITE_ORIGIN;
+
+      expect(siteOrigin()).toBe('http://localhost:3000');
+    });
   });
 });
