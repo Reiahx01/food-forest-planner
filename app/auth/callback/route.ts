@@ -50,6 +50,17 @@ export async function GET(request: Request): Promise<Response> {
   const supabase = createServerSupabaseClient({ cookies: await nextCookieAdapter() });
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
+    // In dev, surface the real Supabase reason — silent failures here are
+    // notoriously hard to diagnose (stale code? wrong-host verifier? expired
+    // link?). Production keeps the generic redirect so we don't leak token /
+    // rate-limit details.
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[auth/callback] exchangeCodeForSession failed:', {
+        message: error.message,
+        status: (error as { status?: number }).status,
+        name: error.name,
+      });
+    }
     return NextResponse.redirect(
       new URL('/signup?error=invalid_link', request.url),
     );

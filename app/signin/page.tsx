@@ -3,32 +3,23 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 
-import { requestMagicLink, type RequestMagicLinkResult } from './actions';
+import { signIn, type SignInResult } from './actions';
 
 /**
- * Magic-link signup form (#5). New-account entry point; the action passes
- * `shouldCreateUser: true` to Supabase so an unknown email gets an account
- * created on first request. Returning users belong on `/signin`, which uses
- * the same magic-link mechanism but `shouldCreateUser: false`.
+ * Magic-link sign-in form. Mirrors `/signup` but passes
+ * `shouldCreateUser: false` so unknown emails get rejected with a hint to
+ * visit `/signup` instead.
  *
- * Three states:
- *
- *   1. idle    -> show the email input
- *   2. sent    -> show "check your email" with the address echoed back
- *   3. error   -> show the action's error message inline + let them retry
- *
- * Brand discipline: brand tokens via Tailwind utilities (`bg-surface-*`,
- * `text-text-*`, `border-border-*`). The anti-generic test in
- * `page.test.tsx` blocks `bg-zinc-*` / `text-gray-*` / `shadow-md` /
- * `transition-all` from sneaking in.
+ * Brand discipline matches the rest of the auth surface — token-only Tailwind
+ * utilities (`bg-surface-*`, `text-text-*`, `border-border-*`).
  */
-export default function SignupPage() {
+export default function SignInPage() {
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<RequestMagicLinkResult | null>(null);
+  const [result, setResult] = useState<SignInResult | null>(null);
 
   function onSubmit(formData: FormData) {
     startTransition(async () => {
-      setResult(await requestMagicLink(formData));
+      setResult(await signIn(formData));
     });
   }
 
@@ -49,11 +40,10 @@ export default function SignupPage() {
       >
         <header className="flex flex-col items-center gap-2 text-center">
           <h1 className="font-display text-3xl font-medium tracking-tight">
-            Sign up
+            Sign in
           </h1>
           <p className="max-w-sm text-sm text-text-muted">
-            We&apos;ll email you a magic link and create your account on first
-            use. No password to remember.
+            We&apos;ll email you a magic link. No password to remember.
           </p>
         </header>
 
@@ -64,7 +54,7 @@ export default function SignupPage() {
           >
             <p className="text-sm text-text-primary">Check your email.</p>
             <p className="text-xs text-text-muted">
-              We sent a magic link to <span className="text-text-gold">{result.email}</span>.
+              We sent a sign-in link to <span className="text-text-gold">{result.email}</span>.
             </p>
           </div>
         ) : (
@@ -106,9 +96,9 @@ export default function SignupPage() {
         )}
 
         <p className="text-xs text-text-muted">
-          Already have an account?{' '}
-          <Link href="/signin" className="text-text-gold hover:text-state-hover">
-            Sign in
+          New here?{' '}
+          <Link href="/signup" className="text-text-gold hover:text-state-hover">
+            Create an account
           </Link>
         </p>
       </section>

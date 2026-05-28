@@ -35,6 +35,22 @@ describe('Home — landing page brand chrome', () => {
     expect(cta.getAttribute('href')).toContain('github.com/Reiahx01/food-forest-planner');
   });
 
+  test('renders a primary "Get started" CTA linking to /signup', () => {
+    render(<Home />);
+    const cta = screen.getByRole('link', { name: /get started/i });
+    expect(cta).toHaveAttribute('href', '/signup');
+    // Sanity-check the chrome treatment is applied to this CTA (the primary
+    // affordance for new visitors should be the chrome button, not the
+    // outline GitHub link).
+    expect(cta.getAttribute('data-testid')).toBe('home-cta-signup');
+  });
+
+  test('renders a secondary "Sign in" link to /signin', () => {
+    render(<Home />);
+    const link = screen.getByRole('link', { name: /^sign in$/i });
+    expect(link).toHaveAttribute('href', '/signin');
+  });
+
   // Codifies AGENTS.md DON'T list as a CI gate. Per vault concept
   // `codified-design-principles`: yes/no conditions over adjectives.
   test('does NOT use any default Tailwind palette utility class (anti-generic guard)', () => {

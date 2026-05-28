@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers';
 
+import { siteOrigin } from '@/lib/env';
 import { createServerSupabaseClient, type CookieAdapter } from '@/lib/supabase/server';
 
 /**
@@ -25,10 +26,6 @@ async function nextCookieAdapter(): Promise<CookieAdapter> {
       }
     },
   };
-}
-
-function siteOrigin(): string {
-  return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? 'http://localhost:3000';
 }
 
 /**
