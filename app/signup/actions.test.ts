@@ -10,13 +10,19 @@ vi.mock('next/headers', () => ({
 }));
 
 const supabaseStub = {
-  auth: { signInWithOtp: vi.fn() },
+  auth: { signUp: vi.fn() },
 };
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(() => supabaseStub),
 }));
 
-import { requestMagicLink } from './actions';
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((path: string) => {
+    throw new Error(`NEXT_REDIRECT:${path}`);
+  }),
+}));
+
+import { signUp } from './actions';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -25,13 +31,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   process.env.DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-  process.env.NEXT_PUBLIC_SITE_ORIGIN = 'http://localhost:3000';
-  // Pin NODE_ENV='test' so we exercise the env-var path in `siteOrigin()`,
-  // not the dev-mode `http://localhost:3000` short-circuit. (They happen to
-  // resolve to the same string here, but the call paths are distinct and
-  // future regressions in either branch should fail this test cleanly.)
-  vi.stubEnv('NODE_ENV', 'test');
-  supabaseStub.auth.signInWithOtp.mockReset();
+  supabaseStub.auth.signUp.mockReset();
 });
 
 afterEach(() => {
@@ -39,56 +39,84 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function formDataWith(email: string): FormData {
+function form(fields: Record<string, string>): FormData {
   const fd = new FormData();
-  fd.set('email', email);
+  for (const [k, v] of Object.entries(fields)) fd.set(k, v);
   return fd;
 }
 
-describe('app/signup/actions — requestMagicLink', () => {
-  test('returns { ok: true } and instructs Supabase to send a magic-link email', async () => {
-    supabaseStub.auth.signInWithOtp.mockResolvedValue({ error: null });
+describe('app/signup/actions — signUp', () => {
+  test('happy path: calls supabase signUp + redirects to /dashboard', async () => {
+    supabaseStub.auth.signUp.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null });
 
-    const result = await requestMagicLink(formDataWith('a@b.co'));
+    await expect(
+      signUp(form({ email: 'a@b.co', password: 'correcthorse' })),
+    ).rejects.toThrow(/NEXT_REDIRECT:\/dashboard/);
 
-    expect(result).toEqual({ ok: true, email: 'a@b.co' });
-    expect(supabaseStub.auth.signInWithOtp).toHaveBeenCalledWith({
+    expect(supabaseStub.auth.signUp).toHaveBeenCalledWith({
       email: 'a@b.co',
-      options: {
-        emailRedirectTo: 'http://localhost:3000/auth/callback',
-        shouldCreateUser: true,
-      },
+      password: 'correcthorse',
     });
   });
 
-  test('lowercases + trims the submitted email before sending', async () => {
-    supabaseStub.auth.signInWithOtp.mockResolvedValue({ error: null });
-
-    await requestMagicLink(formDataWith('  A@B.CO  '));
-
-    expect(supabaseStub.auth.signInWithOtp).toHaveBeenCalledWith(
+  test('lowercases + trims the email', async () => {
+    supabaseStub.auth.signUp.mockResolvedValue({ data: {}, error: null });
+    await expect(signUp(form({ email: '  A@B.CO  ', password: 'correcthorse' }))).rejects.toThrow(
+      /NEXT_REDIRECT/,
+    );
+    expect(supabaseStub.auth.signUp).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'a@b.co' }),
     );
   });
 
-  test('rejects a missing or empty email', async () => {
-    const result = await requestMagicLink(formDataWith(''));
-    expect(result).toEqual({ ok: false, error: 'Please enter a valid email address.' });
-    expect(supabaseStub.auth.signInWithOtp).not.toHaveBeenCalled();
+  test('rejects missing or malformed email without hitting Supabase', async () => {
+    expect(await signUp(form({ email: '', password: 'longenough' }))).toEqual({
+      ok: false,
+      error: expect.stringMatching(/valid email/i),
+    });
+    expect(await signUp(form({ email: 'no-at-sign', password: 'longenough' }))).toEqual({
+      ok: false,
+      error: expect.stringMatching(/valid email/i),
+    });
+    expect(supabaseStub.auth.signUp).not.toHaveBeenCalled();
   });
 
-  test('rejects a syntactically invalid email', async () => {
-    const result = await requestMagicLink(formDataWith('not-an-email'));
-    expect(result.ok).toBe(false);
-    expect(supabaseStub.auth.signInWithOtp).not.toHaveBeenCalled();
+  test('rejects passwords shorter than 8 chars', async () => {
+    const result = await signUp(form({ email: 'a@b.co', password: 'short' }));
+    expect(result).toEqual({ ok: false, error: expect.stringMatching(/at least 8/i) });
+    expect(supabaseStub.auth.signUp).not.toHaveBeenCalled();
   });
 
-  test('surfaces a generic error when Supabase fails (no leak of internal message)', async () => {
-    supabaseStub.auth.signInWithOtp.mockResolvedValue({
+  test('maps "already exists" to a friendly "sign in instead" message', async () => {
+    supabaseStub.auth.signUp.mockResolvedValue({
+      data: null,
+      error: { message: 'User already registered' },
+    });
+
+    const result = await signUp(form({ email: 'a@b.co', password: 'longenough' }));
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringMatching(/already exists.*sign in/i),
+    });
+  });
+
+  test('weak-password feedback maps to a clean hint', async () => {
+    supabaseStub.auth.signUp.mockResolvedValue({
+      data: null,
+      error: { message: 'Password does not meet requirements: too short' },
+    });
+
+    const result = await signUp(form({ email: 'a@b.co', password: 'longenough' }));
+    expect(result).toEqual({ ok: false, error: expect.stringMatching(/too weak/i) });
+  });
+
+  test('falls back to a generic message on unknown Supabase errors (no leak)', async () => {
+    supabaseStub.auth.signUp.mockResolvedValue({
+      data: null,
       error: { message: 'rate limit exceeded for IP 1.2.3.4' },
     });
 
-    const result = await requestMagicLink(formDataWith('a@b.co'));
+    const result = await signUp(form({ email: 'a@b.co', password: 'longenough' }));
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).not.toMatch(/1\.2\.3\.4/);

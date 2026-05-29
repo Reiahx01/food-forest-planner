@@ -1,15 +1,26 @@
 'use server';
 
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
-import { siteOrigin } from '@/lib/env';
 import { createServerSupabaseClient, type CookieAdapter } from '@/lib/supabase/server';
+
+/**
+ * Server action for email + password sign-in. Mirrors `/signup/actions.ts`
+ * but calls `signInWithPassword`. See that file for the rationale behind
+ * dropping magic-link in favour of traditional auth.
+ *
+ * Password reset (a "forgot password" flow) is a follow-up PR -- in the
+ * meantime, operator-level password reset via the Supabase admin panel is
+ * the recovery path.
+ */
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export type SignInResult =
-  | { ok: true; email: string }
-  | { ok: false; error: string };
+export interface SignInResult {
+  ok: false;
+  error: string;
+}
 
 async function nextCookieAdapter(): Promise<CookieAdapter> {
   const store = await cookies();
@@ -23,49 +34,35 @@ async function nextCookieAdapter(): Promise<CookieAdapter> {
   };
 }
 
-/**
- * Server Action: ask Supabase Auth to send a sign-in magic-link to the
- * address. Unlike `requestMagicLink` in `/signup`, this uses
- * `shouldCreateUser: false` — Supabase rejects unknown emails and we surface
- * a "no account found" hint that points the user at `/signup`.
- *
- * Discipline mirrors the signup action: always returns a structured
- * `{ ok, ... }` shape, never leaks Supabase's internal error message
- * verbatim, and lands at `/auth/callback` for the code exchange.
- */
-export async function signIn(formData: FormData): Promise<SignInResult> {
-  const raw = formData.get('email');
-  const email = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+function nonEmpty(value: FormDataEntryValue | null): string {
+  return typeof value === 'string' ? value : '';
+}
+
+export async function signIn(formData: FormData): Promise<SignInResult | never> {
+  const email = nonEmpty(formData.get('email')).trim().toLowerCase();
+  const password = nonEmpty(formData.get('password'));
+
   if (!email || !EMAIL_PATTERN.test(email)) {
     return { ok: false, error: 'Please enter a valid email address.' };
   }
+  if (password.length === 0) {
+    return { ok: false, error: 'Please enter your password.' };
+  }
 
   const supabase = createServerSupabaseClient({ cookies: await nextCookieAdapter() });
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: `${siteOrigin()}/auth/callback`,
-      shouldCreateUser: false,
-    },
-  });
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    // Supabase returns a "signup is disabled" / "user not found" style error
-    // when shouldCreateUser=false and the email isn't on file. We don't
-    // distinguish at the network level (timing-attack hygiene) but we do
-    // hint at the recovery path: visit /signup.
-    const message = error.message?.toLowerCase() ?? '';
-    if (message.includes('signup') || message.includes('not allowed') || message.includes('user not found')) {
-      return {
-        ok: false,
-        error: "We don't recognise that email. If you're new, sign up first.",
-      };
+    // Don't differentiate between "no such account" and "wrong password" --
+    // that's a user-enumeration vulnerability. Generic message either way.
+    if (/credentials|invalid|email\s*not\s*confirmed/i.test(error.message)) {
+      return { ok: false, error: 'Email or password is incorrect.' };
     }
     return {
       ok: false,
-      error: 'Something went wrong sending the magic link -- please try again in a minute.',
+      error: 'Something went wrong signing you in. Please try again.',
     };
   }
 
-  return { ok: true, email };
+  redirect('/dashboard');
 }
