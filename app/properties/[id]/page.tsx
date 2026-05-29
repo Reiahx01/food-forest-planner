@@ -5,6 +5,7 @@ import { Nav } from '@/app/components/Nav';
 import { deleteProperty } from '@/app/properties/actions';
 import { PropertyMap } from '@/app/properties/PropertyMap';
 import { getCurrentAccount } from '@/lib/auth/session';
+import { listDesignsForProperty, type DesignSummary } from '@/lib/designs/queries';
 import { getProperty } from '@/lib/properties/queries';
 
 export default async function PropertyShowPage({
@@ -25,6 +26,7 @@ export default async function PropertyShowPage({
   }
 
   const deleteAction = deleteProperty.bind(null, property.id);
+  const designs = await listDesignsForProperty(property.id);
 
   return (
     <>
@@ -67,14 +69,61 @@ export default async function PropertyShowPage({
 
         <PropertyMap center={property.center} outline={property.parcelOutline} />
 
-        <section
+        <DesignsSection propertyId={property.id} designs={designs} />
+      </main>
+    </>
+  );
+}
+
+function DesignsSection({
+  propertyId,
+  designs,
+}: {
+  propertyId: string;
+  designs: DesignSummary[];
+}) {
+  return (
+    <section className="flex flex-col gap-4">
+      <header className="flex items-center justify-between">
+        <h2 className="font-display text-xl font-medium">Designs</h2>
+        <Link
+          href={`/designs/new?propertyId=${propertyId}`}
+          className="inline-flex h-9 items-center justify-center rounded-md border border-border-chrome px-4 text-xs font-medium"
+          style={{
+            background: 'var(--gradient-accent-chrome)',
+            color: 'var(--color-text-inverse)',
+            boxShadow: 'var(--shadow-chrome)',
+          }}
+        >
+          New design
+        </Link>
+      </header>
+      {designs.length === 0 ? (
+        <p
           className="rounded-xl border border-border-glass bg-surface-glass px-5 py-4 text-sm text-text-muted backdrop-blur-md"
           style={{ boxShadow: 'var(--shadow-panel)' }}
         >
-          Designs for this Property will appear here once #13 ships. For now, you can
-          edit the address or delete this property.
-        </section>
-      </main>
-    </>
+          No designs yet. A design overlays elements (guilds, ponds, beds…) on the
+          parcel. Create one to open the editor.
+        </p>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {designs.map((d) => (
+            <li key={d.id}>
+              <Link
+                href={`/designs/${d.id}`}
+                className="flex flex-col gap-1 rounded-xl border border-border-glass bg-surface-glass px-5 py-4 backdrop-blur-md hover:border-border-solid"
+                style={{ boxShadow: 'var(--shadow-panel)' }}
+              >
+                <p className="font-display text-lg font-medium text-text-primary">{d.name}</p>
+                {d.description ? (
+                  <p className="text-xs text-text-muted">{d.description}</p>
+                ) : null}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
