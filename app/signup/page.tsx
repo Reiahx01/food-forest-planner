@@ -3,32 +3,27 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 
-import { requestMagicLink, type RequestMagicLinkResult } from './actions';
+import { signUp, type SignUpResult } from './actions';
 
 /**
- * Magic-link signup form (#5). New-account entry point; the action passes
- * `shouldCreateUser: true` to Supabase so an unknown email gets an account
- * created on first request. Returning users belong on `/signin`, which uses
- * the same magic-link mechanism but `shouldCreateUser: false`.
+ * Email + password signup. Replaces the prior magic-link flow -- see
+ * `./actions.ts` for the why.
  *
- * Three states:
- *
- *   1. idle    -> show the email input
- *   2. sent    -> show "check your email" with the address echoed back
- *   3. error   -> show the action's error message inline + let them retry
- *
- * Brand discipline: brand tokens via Tailwind utilities (`bg-surface-*`,
- * `text-text-*`, `border-border-*`). The anti-generic test in
- * `page.test.tsx` blocks `bg-zinc-*` / `text-gray-*` / `shadow-md` /
- * `transition-all` from sneaking in.
+ * Brand discipline matches the rest of the auth surface: token-only
+ * Tailwind utilities. The anti-generic test in `page.test.tsx` blocks
+ * default palette utilities from sneaking in.
  */
 export default function SignupPage() {
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<RequestMagicLinkResult | null>(null);
+  const [result, setResult] = useState<SignUpResult | null>(null);
 
   function onSubmit(formData: FormData) {
     startTransition(async () => {
-      setResult(await requestMagicLink(formData));
+      // The action redirects on success, so we only see a return value on
+      // failure (the redirect throws NEXT_REDIRECT which Next handles before
+      // we get here).
+      const r = await signUp(formData);
+      setResult(r);
     });
   }
 
@@ -48,62 +43,62 @@ export default function SignupPage() {
         style={{ boxShadow: 'var(--shadow-panel)' }}
       >
         <header className="flex flex-col items-center gap-2 text-center">
-          <h1 className="font-display text-3xl font-medium tracking-tight">
-            Sign up
-          </h1>
+          <h1 className="font-display text-3xl font-medium tracking-tight">Sign up</h1>
           <p className="max-w-sm text-sm text-text-muted">
-            We&apos;ll email you a magic link and create your account on first
-            use. No password to remember.
+            Email + a password you&apos;ll remember. You&apos;re in as soon as you submit
+            -- no email round-trip.
           </p>
         </header>
 
-        {result?.ok ? (
-          <div
-            role="status"
-            className="flex flex-col items-center gap-2 rounded-lg border border-border-glass bg-surface-raised px-5 py-4 text-center"
-          >
-            <p className="text-sm text-text-primary">Check your email.</p>
-            <p className="text-xs text-text-muted">
-              We sent a magic link to <span className="text-text-gold">{result.email}</span>.
+        <form action={onSubmit} className="flex w-full flex-col gap-4">
+          <label htmlFor="email" className="flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Email</span>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+              className="h-11 rounded-md border border-border-glass bg-surface-raised px-4 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-border-solid"
+            />
+          </label>
+
+          <label htmlFor="password" className="flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-[0.16em] text-text-muted">
+              Password
+            </span>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              className="h-11 rounded-md border border-border-glass bg-surface-raised px-4 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-border-solid"
+            />
+          </label>
+
+          {result && !result.ok ? (
+            <p role="alert" className="text-xs text-state-danger">
+              {result.error}
             </p>
-          </div>
-        ) : (
-          <form action={onSubmit} className="flex w-full flex-col gap-4">
-            <label htmlFor="email" className="flex flex-col gap-2">
-              <span className="text-xs uppercase tracking-[0.16em] text-text-muted">
-                Email
-              </span>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="h-11 rounded-md border border-border-glass bg-surface-raised px-4 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-border-solid"
-              />
-            </label>
+          ) : null}
 
-            {result && !result.ok ? (
-              <p role="alert" className="text-xs text-state-danger">
-                {result.error}
-              </p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={pending}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border-chrome px-5 text-sm font-medium disabled:opacity-60"
-              style={{
-                background: 'var(--gradient-accent-chrome)',
-                color: 'var(--color-text-inverse)',
-                boxShadow: 'var(--shadow-chrome)',
-              }}
-            >
-              {pending ? 'Sending…' : 'Send magic link'}
-            </button>
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={pending}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border-chrome px-5 text-sm font-medium disabled:opacity-60"
+            style={{
+              background: 'var(--gradient-accent-chrome)',
+              color: 'var(--color-text-inverse)',
+              boxShadow: 'var(--shadow-chrome)',
+            }}
+          >
+            {pending ? 'Creating account…' : 'Create account'}
+          </button>
+        </form>
 
         <p className="text-xs text-text-muted">
           Already have an account?{' '}

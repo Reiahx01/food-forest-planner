@@ -2,70 +2,37 @@ import { randomUUID } from 'node:crypto';
 
 import { expect, test } from '@playwright/test';
 
-import {
-  deleteMessage,
-  extractMagicLink,
-  getMessage,
-  waitForMessageTo,
-} from './helpers/mailpit';
-
 /**
- * #5 Playwright follow-up: full magic-link signup happy path.
+ * Email + password signup happy path.
  *
- * Stack involved end-to-end:
- *   - /signup page + requestMagicLink Server Action
- *   - Supabase Auth (signInWithOtp)
- *   - Local Mailpit (where the dev email is captured -- note the container
- *     is still called `supabase_inbucket_*` for backward compat, but the
- *     image is mailpit:v1.x; see helpers/mailpit.ts for context).
- *   - /auth/callback route (exchanges ?code= for a session)
- *   - public.accounts trigger from auth.users
- *   - /dashboard server component (RLS-respecting read of the user's row)
+ * Previous incarnation polled Mailpit for a magic-link email; the email
+ * pipeline was fragile (see PRs #40 / #41 / #43). The traditional
+ * email+password flow signs the user in synchronously on form submit,
+ * so the spec is now a single form interaction + a navigation assertion.
  *
  * Each spec uses a unique `e2e-<uuid>@test.local` so parallel runs don't
- * step on each other's mail.
+ * step on each other's accounts.
  */
 
-test.describe('signup magic-link happy path', () => {
-  test('email -> Mailpit -> callback -> /dashboard with role=hobbyist', async ({
-    page,
-    request,
-  }) => {
+test.describe('email + password signup happy path', () => {
+  test('signup -> /onboarding (first-sign-in) -> pick role -> /dashboard', async ({ page }) => {
     const email = `e2e-${randomUUID()}@test.local`;
+    const password = 'correcthorsebatterystaple';
 
     await test.step('submit the signup form', async () => {
       await page.goto('/signup');
-      // Heading was renamed from "Sign in" to "Sign up" in PR #47 when the
-      // signup / signin pages were split. Anchor the match so we match the
-      // page's H1 rather than any cross-link to "Sign in" elsewhere on the
-      // page.
       await expect(page.getByRole('heading', { level: 1, name: /^sign up$/i })).toBeVisible();
 
       await page.getByLabel(/email/i).fill(email);
-      await page.getByRole('button', { name: /send magic link/i }).click();
-
-      await expect(page.getByText(/check your email/i)).toBeVisible();
-      await expect(page.getByText(email)).toBeVisible();
+      await page.getByLabel(/password/i).fill(password);
+      await page.getByRole('button', { name: /create account/i }).click();
     });
 
-    // The CI workflow's "Dump Inbucket state on failure" step handles the
-    // post-failure diagnostics (it dumps the supabase_auth + supabase_inbucket
-    // container logs which are far more useful than the REST API state).
-    const header = await test.step(
-      'retrieve the magic link from Mailpit',
-      async () => waitForMessageTo(request, email),
-    );
-    const message = await getMessage(request, header.ID);
-    const magicLink = extractMagicLink(message);
-
-    await test.step('follow the link and land on /onboarding (first-sign-in #6)', async () => {
-      await page.goto(magicLink);
-      // The callback redirects to /dashboard, then the proxy redirects on to
-      // /onboarding because onboarded_at is still null at this point.
+    await test.step('land on /onboarding (proxy forwards first-sign-in)', async () => {
+      // signUp redirects to /dashboard; the proxy then forwards to /onboarding
+      // because accounts.onboarded_at is still null at this point.
       await expect(page).toHaveURL(/\/onboarding(\?|$)/);
-      await expect(
-        page.getByRole('heading', { name: /how will you use/i }),
-      ).toBeVisible();
+      await expect(page.getByRole('heading', { name: /how will you use/i })).toBeVisible();
     });
 
     await test.step('pick hobbyist -> /dashboard', async () => {
@@ -85,8 +52,35 @@ test.describe('signup magic-link happy path', () => {
       await page.goto('/onboarding');
       await expect(page).toHaveURL(/\/dashboard(\?|$)/);
     });
+  });
+});
 
-    await deleteMessage(request, header.ID);
+test.describe('signin happy path', () => {
+  test('signup -> sign out -> signin -> /dashboard', async ({ page, context }) => {
+    const email = `e2e-${randomUUID()}@test.local`;
+    const password = 'correcthorsebatterystaple';
+
+    // Bootstrap an account so we have something to sign into.
+    await page.goto('/signup');
+    await page.getByLabel(/email/i).fill(email);
+    await page.getByLabel(/password/i).fill(password);
+    await page.getByRole('button', { name: /create account/i }).click();
+    await expect(page).toHaveURL(/\/onboarding(\?|$)/);
+    await page.getByRole('button', { name: /designing for myself/i }).click();
+    await expect(page).toHaveURL(/\/dashboard(\?|$)/);
+
+    // Simulate sign-out by clearing cookies (a real Sign Out button lands
+    // in a separate small PR; this proves the password sign-in path).
+    await context.clearCookies();
+
+    await page.goto('/signin');
+    await page.getByLabel(/email/i).fill(email);
+    await page.getByLabel(/password/i).fill(password);
+    await page.getByRole('button', { name: /sign in/i }).click();
+
+    // Already onboarded -> straight to /dashboard.
+    await expect(page).toHaveURL(/\/dashboard(\?|$)/);
+    await expect(page.getByRole('heading', { name: new RegExp(`Hi ${escapeRegex(email)}`) })).toBeVisible();
   });
 });
 

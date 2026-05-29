@@ -11,19 +11,22 @@ import SignInPage from './page';
 
 const signInMock = vi.mocked(signIn);
 
-describe('app/signin/page — magic-link sign-in form', () => {
-  test('renders an email input and a brand-styled submit button', () => {
+describe('app/signin/page — email + password signin form', () => {
+  test('renders email + password inputs and a brand-styled submit button', () => {
     render(<SignInPage />);
 
     const email = screen.getByLabelText(/email/i);
     expect(email).toHaveAttribute('type', 'email');
     expect(email).toBeRequired();
 
-    const submit = screen.getByRole('button', { name: /send magic link/i });
-    expect(submit).toBeInTheDocument();
+    const password = screen.getByLabelText(/password/i);
+    expect(password).toHaveAttribute('type', 'password');
+    expect(password).toBeRequired();
+
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
 
-  test('uses "Sign in" framing (distinct from /signup)', () => {
+  test('uses "Sign in" framing', () => {
     render(<SignInPage />);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/sign in/i);
   });
@@ -34,29 +37,19 @@ describe('app/signin/page — magic-link sign-in form', () => {
     expect(link).toHaveAttribute('href', '/signup');
   });
 
-  test('shows a "check your email" message after the action succeeds', async () => {
-    signInMock.mockResolvedValueOnce({ ok: true, email: 'a@b.co' });
-
-    render(<SignInPage />);
-    await userEvent.type(screen.getByLabelText(/email/i), 'a@b.co');
-    await userEvent.click(screen.getByRole('button', { name: /send magic link/i }));
-
-    expect(await screen.findByText(/check your email/i)).toBeInTheDocument();
-    expect(screen.getByText(/a@b\.co/)).toBeInTheDocument();
-  });
-
-  test('shows the no-account hint when the action returns it', async () => {
+  test('shows the action error inline', async () => {
     signInMock.mockResolvedValueOnce({
       ok: false,
-      error: "We don't recognise that email. If you're new, sign up first.",
+      error: 'Email or password is incorrect.',
     });
 
     render(<SignInPage />);
     await userEvent.type(screen.getByLabelText(/email/i), 'a@b.co');
-    await userEvent.click(screen.getByRole('button', { name: /send magic link/i }));
+    await userEvent.type(screen.getByLabelText(/password/i), 'wrongpw');
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/don't recognise/i);
+    expect(alert).toHaveTextContent(/incorrect/i);
   });
 
   test('uses no default Tailwind palette utilities (brand discipline)', () => {

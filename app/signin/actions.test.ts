@@ -10,10 +10,16 @@ vi.mock('next/headers', () => ({
 }));
 
 const supabaseStub = {
-  auth: { signInWithOtp: vi.fn() },
+  auth: { signInWithPassword: vi.fn() },
 };
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(() => supabaseStub),
+}));
+
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((path: string) => {
+    throw new Error(`NEXT_REDIRECT:${path}`);
+  }),
 }));
 
 import { signIn } from './actions';
@@ -25,12 +31,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   process.env.DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-  process.env.NEXT_PUBLIC_SITE_ORIGIN = 'http://localhost:3000';
-  // The dev-mode override in `siteOrigin()` keys off NODE_ENV — explicitly
-  // pin to 'test' here so we're exercising the env-var path, not the
-  // localhost fallback.
-  vi.stubEnv('NODE_ENV', 'test');
-  supabaseStub.auth.signInWithOtp.mockReset();
+  supabaseStub.auth.signInWithPassword.mockReset();
 });
 
 afterEach(() => {
@@ -38,80 +39,66 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function formDataWith(email: string): FormData {
+function form(fields: Record<string, string>): FormData {
   const fd = new FormData();
-  fd.set('email', email);
+  for (const [k, v] of Object.entries(fields)) fd.set(k, v);
   return fd;
 }
 
 describe('app/signin/actions — signIn', () => {
-  test('calls Supabase with shouldCreateUser: false (the signin/signup distinction)', async () => {
-    supabaseStub.auth.signInWithOtp.mockResolvedValue({ error: null });
+  test('happy path: calls signInWithPassword + redirects to /dashboard', async () => {
+    supabaseStub.auth.signInWithPassword.mockResolvedValue({ data: {}, error: null });
 
-    const result = await signIn(formDataWith('a@b.co'));
+    await expect(
+      signIn(form({ email: 'a@b.co', password: 'correcthorse' })),
+    ).rejects.toThrow(/NEXT_REDIRECT:\/dashboard/);
 
-    expect(result).toEqual({ ok: true, email: 'a@b.co' });
-    expect(supabaseStub.auth.signInWithOtp).toHaveBeenCalledWith({
+    expect(supabaseStub.auth.signInWithPassword).toHaveBeenCalledWith({
       email: 'a@b.co',
-      options: {
-        emailRedirectTo: 'http://localhost:3000/auth/callback',
-        shouldCreateUser: false,
-      },
+      password: 'correcthorse',
     });
   });
 
-  test('lowercases + trims the email before sending', async () => {
-    supabaseStub.auth.signInWithOtp.mockResolvedValue({ error: null });
+  test('lowercases + trims the email', async () => {
+    supabaseStub.auth.signInWithPassword.mockResolvedValue({ data: {}, error: null });
 
-    await signIn(formDataWith('  A@B.CO  '));
-
-    expect(supabaseStub.auth.signInWithOtp).toHaveBeenCalledWith(
+    await expect(
+      signIn(form({ email: '  A@B.CO  ', password: 'pw' })),
+    ).rejects.toThrow(/NEXT_REDIRECT/);
+    expect(supabaseStub.auth.signInWithPassword).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'a@b.co' }),
     );
   });
 
-  test('rejects a missing or empty email', async () => {
-    const result = await signIn(formDataWith(''));
+  test('rejects a missing email', async () => {
+    const result = await signIn(form({ email: '', password: 'pw' }));
     expect(result).toEqual({ ok: false, error: 'Please enter a valid email address.' });
-    expect(supabaseStub.auth.signInWithOtp).not.toHaveBeenCalled();
+    expect(supabaseStub.auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
-  test('rejects a syntactically invalid email', async () => {
-    const result = await signIn(formDataWith('not-an-email'));
-    expect(result.ok).toBe(false);
-    expect(supabaseStub.auth.signInWithOtp).not.toHaveBeenCalled();
+  test('rejects an empty password', async () => {
+    const result = await signIn(form({ email: 'a@b.co', password: '' }));
+    expect(result).toEqual({ ok: false, error: 'Please enter your password.' });
+    expect(supabaseStub.auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
-  test('returns the no-account hint when Supabase signals signups are disabled', async () => {
-    supabaseStub.auth.signInWithOtp.mockResolvedValue({
-      error: { message: 'Signups not allowed for otp' },
+  test('maps wrong-credentials errors to a generic message (no user enumeration)', async () => {
+    supabaseStub.auth.signInWithPassword.mockResolvedValue({
+      data: null,
+      error: { message: 'Invalid login credentials' },
     });
 
-    const result = await signIn(formDataWith('a@b.co'));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toMatch(/don't recognise/i);
-    }
+    const result = await signIn(form({ email: 'a@b.co', password: 'wrong' }));
+    expect(result).toEqual({ ok: false, error: expect.stringMatching(/email or password is incorrect/i) });
   });
 
-  test('returns the no-account hint when Supabase signals user not found', async () => {
-    supabaseStub.auth.signInWithOtp.mockResolvedValue({
-      error: { message: 'User not found' },
-    });
-
-    const result = await signIn(formDataWith('a@b.co'));
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toMatch(/don't recognise/i);
-    }
-  });
-
-  test('returns the generic error for unrecognised Supabase failures', async () => {
-    supabaseStub.auth.signInWithOtp.mockResolvedValue({
+  test('falls back to a generic message on unknown Supabase errors', async () => {
+    supabaseStub.auth.signInWithPassword.mockResolvedValue({
+      data: null,
       error: { message: 'rate limit exceeded for IP 1.2.3.4' },
     });
 
-    const result = await signIn(formDataWith('a@b.co'));
+    const result = await signIn(form({ email: 'a@b.co', password: 'correcthorse' }));
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error).not.toMatch(/1\.2\.3\.4/);

@@ -6,12 +6,8 @@ import { useState, useTransition } from 'react';
 import { signIn, type SignInResult } from './actions';
 
 /**
- * Magic-link sign-in form. Mirrors `/signup` but passes
- * `shouldCreateUser: false` so unknown emails get rejected with a hint to
- * visit `/signup` instead.
- *
- * Brand discipline matches the rest of the auth surface — token-only Tailwind
- * utilities (`bg-surface-*`, `text-text-*`, `border-border-*`).
+ * Email + password sign-in. Mirrors `/signup` -- see `./actions.ts` for the
+ * why behind dropping magic-link in favour of traditional auth.
  */
 export default function SignInPage() {
   const [pending, startTransition] = useTransition();
@@ -19,7 +15,9 @@ export default function SignInPage() {
 
   function onSubmit(formData: FormData) {
     startTransition(async () => {
-      setResult(await signIn(formData));
+      // The action redirects on success; we only see a return value on failure.
+      const r = await signIn(formData);
+      setResult(r);
     });
   }
 
@@ -39,61 +37,57 @@ export default function SignInPage() {
         style={{ boxShadow: 'var(--shadow-panel)' }}
       >
         <header className="flex flex-col items-center gap-2 text-center">
-          <h1 className="font-display text-3xl font-medium tracking-tight">
-            Sign in
-          </h1>
-          <p className="max-w-sm text-sm text-text-muted">
-            We&apos;ll email you a magic link. No password to remember.
-          </p>
+          <h1 className="font-display text-3xl font-medium tracking-tight">Sign in</h1>
+          <p className="max-w-sm text-sm text-text-muted">Welcome back.</p>
         </header>
 
-        {result?.ok ? (
-          <div
-            role="status"
-            className="flex flex-col items-center gap-2 rounded-lg border border-border-glass bg-surface-raised px-5 py-4 text-center"
-          >
-            <p className="text-sm text-text-primary">Check your email.</p>
-            <p className="text-xs text-text-muted">
-              We sent a sign-in link to <span className="text-text-gold">{result.email}</span>.
+        <form action={onSubmit} className="flex w-full flex-col gap-4">
+          <label htmlFor="email" className="flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Email</span>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+              className="h-11 rounded-md border border-border-glass bg-surface-raised px-4 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-border-solid"
+            />
+          </label>
+
+          <label htmlFor="password" className="flex flex-col gap-2">
+            <span className="text-xs uppercase tracking-[0.16em] text-text-muted">
+              Password
+            </span>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              className="h-11 rounded-md border border-border-glass bg-surface-raised px-4 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-border-solid"
+            />
+          </label>
+
+          {result && !result.ok ? (
+            <p role="alert" className="text-xs text-state-danger">
+              {result.error}
             </p>
-          </div>
-        ) : (
-          <form action={onSubmit} className="flex w-full flex-col gap-4">
-            <label htmlFor="email" className="flex flex-col gap-2">
-              <span className="text-xs uppercase tracking-[0.16em] text-text-muted">
-                Email
-              </span>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="h-11 rounded-md border border-border-glass bg-surface-raised px-4 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-border-solid"
-              />
-            </label>
+          ) : null}
 
-            {result && !result.ok ? (
-              <p role="alert" className="text-xs text-state-danger">
-                {result.error}
-              </p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={pending}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border-chrome px-5 text-sm font-medium disabled:opacity-60"
-              style={{
-                background: 'var(--gradient-accent-chrome)',
-                color: 'var(--color-text-inverse)',
-                boxShadow: 'var(--shadow-chrome)',
-              }}
-            >
-              {pending ? 'Sending…' : 'Send magic link'}
-            </button>
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={pending}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border-chrome px-5 text-sm font-medium disabled:opacity-60"
+            style={{
+              background: 'var(--gradient-accent-chrome)',
+              color: 'var(--color-text-inverse)',
+              boxShadow: 'var(--shadow-chrome)',
+            }}
+          >
+            {pending ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
 
         <p className="text-xs text-text-muted">
           New here?{' '}

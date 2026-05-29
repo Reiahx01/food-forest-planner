@@ -3,73 +3,58 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('./actions', () => ({
-  requestMagicLink: vi.fn(),
+  signUp: vi.fn(),
 }));
 
-import { requestMagicLink } from './actions';
+import { signUp } from './actions';
 import SignupPage from './page';
 
-const requestMagicLinkMock = vi.mocked(requestMagicLink);
+const signUpMock = vi.mocked(signUp);
 
-describe('app/signup/page — magic-link signup form', () => {
-  test('renders an email input and a brand-styled submit button', () => {
+describe('app/signup/page — email + password signup form', () => {
+  test('renders an email + password input and a brand-styled submit button', () => {
     render(<SignupPage />);
 
     const email = screen.getByLabelText(/email/i);
     expect(email).toHaveAttribute('type', 'email');
     expect(email).toBeRequired();
 
-    const submit = screen.getByRole('button', { name: /send magic link/i });
-    expect(submit).toBeInTheDocument();
+    const password = screen.getByLabelText(/password/i);
+    expect(password).toHaveAttribute('type', 'password');
+    expect(password).toBeRequired();
+    expect(password).toHaveAttribute('minLength', '8');
+
+    expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
   });
 
-  test('uses "Sign up" framing (not "Sign in" — the unified-copy bug)', () => {
+  test('uses "Sign up" framing', () => {
     render(<SignupPage />);
-
-    const heading = screen.getByRole('heading', { level: 1 });
-    expect(heading).toHaveTextContent(/sign up/i);
-    expect(heading).not.toHaveTextContent(/^sign in$/i);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/sign up/i);
   });
 
   test('cross-links to /signin for returning users', () => {
     render(<SignupPage />);
-
-    const link = screen.getByRole('link', { name: /sign in/i });
-    expect(link).toHaveAttribute('href', '/signin');
-  });
-
-  test('shows a "check your email" message after the action succeeds', async () => {
-    requestMagicLinkMock.mockResolvedValueOnce({ ok: true, email: 'a@b.co' });
-
-    render(<SignupPage />);
-    await userEvent.type(screen.getByLabelText(/email/i), 'a@b.co');
-    await userEvent.click(screen.getByRole('button', { name: /send magic link/i }));
-
-    expect(await screen.findByText(/check your email/i)).toBeInTheDocument();
-    expect(screen.getByText(/a@b\.co/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute('href', '/signin');
   });
 
   test('shows the error message returned by the action', async () => {
-    // Submit a syntactically-valid email so the browser's type=email check
-    // lets the form submit; the action mock returns the error we want to
-    // assert is rendered.
-    requestMagicLinkMock.mockResolvedValueOnce({
+    signUpMock.mockResolvedValueOnce({
       ok: false,
-      error: 'Something went wrong sending the magic link -- please try again in a minute.',
+      error: 'An account with that email already exists. Sign in instead.',
     });
 
     render(<SignupPage />);
     await userEvent.type(screen.getByLabelText(/email/i), 'a@b.co');
-    await userEvent.click(screen.getByRole('button', { name: /send magic link/i }));
+    await userEvent.type(screen.getByLabelText(/password/i), 'correcthorse');
+    await userEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/try again/i);
+    expect(alert).toHaveTextContent(/already exists/i);
   });
 
   test('uses no default Tailwind palette utilities (brand discipline)', () => {
     const { container } = render(<SignupPage />);
     const html = container.innerHTML;
-    // Same anti-generic guard the landing page enforces.
     for (const banned of [
       /\bbg-zinc-/,
       /\bbg-gray-/,
