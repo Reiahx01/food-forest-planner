@@ -22,7 +22,7 @@ import { createServerSupabaseClient, type CookieAdapter } from '@/lib/supabase/s
  * leak the wrong page.
  */
 
-const PROTECTED_PREFIXES = ['/dashboard', '/onboarding', '/properties'];
+const PROTECTED_PREFIXES = ['/dashboard', '/onboarding', '/properties', '/designs'];
 
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
