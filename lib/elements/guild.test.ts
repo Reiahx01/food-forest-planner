@@ -27,6 +27,36 @@ describe('lib/elements/guild — module shape', () => {
   });
 });
 
+describe('lib/elements/guild — buildMapLayers (#14 part 2)', () => {
+  const polygon = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+
+  test('wraps the element geometry in a per-element GeoJSON source', () => {
+    const render = guildModule.buildMapLayers({ id: 'el-1', geometry: polygon });
+    expect(render.source.id).toBe('element-el-1');
+    expect(render.source.data).toMatchObject({ type: 'Feature', geometry: polygon });
+  });
+
+  test('emits gold fill + line layers bound to the element source', () => {
+    const render = guildModule.buildMapLayers({ id: 'el-1', geometry: polygon });
+    const fill = render.layers.find((l) => l.type === 'fill');
+    const line = render.layers.find((l) => l.type === 'line');
+    expect(fill?.id).toBe('element-el-1-fill');
+    expect(line?.id).toBe('element-el-1-line');
+    expect(fill?.source).toBe('element-el-1');
+    expect(line?.source).toBe('element-el-1');
+    // brand accent.gold — same literal PropertyMap paints the parcel with
+    expect(fill?.paint['fill-color']).toBe('oklch(72% 0.13 80)');
+    expect(line?.paint['line-color']).toBe('oklch(72% 0.13 80)');
+  });
+
+  test('namespaces ids per element so two guilds never collide', () => {
+    const a = guildModule.buildMapLayers({ id: 'aaa', geometry: polygon });
+    const b = guildModule.buildMapLayers({ id: 'bbb', geometry: polygon });
+    expect(a.source.id).not.toBe(b.source.id);
+    expect(a.layers[0].id).not.toBe(b.layers[0].id);
+  });
+});
+
 describe('lib/elements/guild — Zod schema', () => {
   test('accepts a minimal valid payload (center tree only)', () => {
     const result = guildAttributesSchema.safeParse({ centerTreeSpeciesId: VALID_UUID });
