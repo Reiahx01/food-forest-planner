@@ -44,11 +44,31 @@ export interface ElementDomainContext {
 
 export type DomainRuleResult = string[];
 
+/** The input the editor host hands a module to render a persisted element. */
+export interface ElementRenderInput {
+  readonly id: string;
+  /** GeoJSON geometry as persisted in `elements.geometry`. */
+  readonly geometry: unknown;
+}
+
+/** A single MapLibre layer spec the host adds via `map.addLayer`. */
+export interface ElementMapLayerSpec {
+  readonly id: string;
+  readonly type: 'fill' | 'line' | 'circle' | 'symbol';
+  readonly source: string;
+  readonly paint: Record<string, unknown>;
+}
+
+/** A per-element GeoJSON source plus the layers that render it. */
+export interface ElementMapRender {
+  readonly source: { readonly id: string; readonly data: unknown };
+  readonly layers: readonly ElementMapLayerSpec[];
+}
+
 /**
- * Minimum surface for #14 part 1: schema, defaults, and validator. The
- * panel + map-renderer fields are declared optional here so the modules
- * can land in two PRs without forcing every consumer to grow at once.
- * Part 2 marks them required and removes the `?`.
+ * #14 part 1 shipped schema + defaults + validator. Part 2 grows the surface:
+ * `buildMapLayers` (this increment) is now required; `panel` (the right-sidebar
+ * attribute editor) follows in the next increment alongside the editor wiring.
  */
 export interface ElementTypeModule<TAttrs> {
   /** Discriminator -- matches the `element_type` Postgres enum value. */
@@ -68,6 +88,14 @@ export interface ElementTypeModule<TAttrs> {
 
   /** Default attributes object used when the user drops a fresh element. */
   readonly defaultAttributes: () => unknown;
+
+  /**
+   * Map-render factory: given a persisted element (id + geometry), return a
+   * per-element GeoJSON source + the MapLibre layer specs that draw it. The
+   * editor host adds these via `map.addSource` / `map.addLayer` and never
+   * branches on element type.
+   */
+  readonly buildMapLayers: (element: ElementRenderInput) => ElementMapRender;
 
   /**
    * Optional domain-rule validator. Returns [] if everything is fine,

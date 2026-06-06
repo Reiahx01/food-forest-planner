@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { DomainRuleResult, ElementTypeModule } from './types';
+import type { DomainRuleResult, ElementMapRender, ElementRenderInput, ElementTypeModule } from './types';
 
 /**
  * Guild element module -- the first module to land. A Guild is a center
@@ -45,6 +45,38 @@ export function validateGuildDomainRules(
   return [];
 }
 
+/**
+ * Map render for a Guild: the drawn polygon as a translucent gold fill with a
+ * gold outline — the same brand `accent.gold` PropertyMap paints the parcel
+ * with. Source + layer ids are namespaced by element id so many guilds coexist
+ * on one Design without colliding.
+ */
+const GUILD_GOLD = 'oklch(72% 0.13 80)';
+
+export function buildGuildMapLayers({ id, geometry }: ElementRenderInput): ElementMapRender {
+  const sourceId = `element-${id}`;
+  return {
+    source: {
+      id: sourceId,
+      data: { type: 'Feature', properties: { elementId: id, type: 'guild' }, geometry },
+    },
+    layers: [
+      {
+        id: `${sourceId}-fill`,
+        type: 'fill',
+        source: sourceId,
+        paint: { 'fill-color': GUILD_GOLD, 'fill-opacity': 0.25 },
+      },
+      {
+        id: `${sourceId}-line`,
+        type: 'line',
+        source: sourceId,
+        paint: { 'line-color': GUILD_GOLD, 'line-width': 2 },
+      },
+    ],
+  };
+}
+
 export const guildModule: ElementTypeModule<GuildAttributes> = {
   type: 'guild',
   label: 'Guild',
@@ -58,5 +90,6 @@ export const guildModule: ElementTypeModule<GuildAttributes> = {
     centerTreeSpeciesId: '',
     companionSpeciesIds: [],
   }),
+  buildMapLayers: buildGuildMapLayers,
   validateDomainRules: validateGuildDomainRules,
 };
