@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { GuildPanel } from './guild-panel';
 import type { DomainRuleResult, ElementMapRender, ElementRenderInput, ElementTypeModule } from './types';
 
 /**
@@ -91,5 +92,6 @@ export const guildModule: ElementTypeModule<GuildAttributes> = {
     companionSpeciesIds: [],
   }),
   buildMapLayers: buildGuildMapLayers,
+  panel: GuildPanel,
   validateDomainRules: validateGuildDomainRules,
 };

@@ -19,6 +19,7 @@ describe('lib/elements/types — ElementTypeModule contract', () => {
       attributesSchema: z.object({ name: z.string() }),
       defaultAttributes: () => ({ name: '' }),
       buildMapLayers: () => ({ source: { id: 'stub', data: null }, layers: [] }),
+      panel: () => null,
     };
     expect(stub.type).toBe('guild');
     expect(stub.geometry).toBe('polygon');
@@ -33,6 +34,7 @@ describe('lib/elements/types — ElementTypeModule contract', () => {
       attributesSchema: z.object({ x: z.number() }),
       defaultAttributes: () => ({ x: 0 }),
       buildMapLayers: () => ({ source: { id: 'stub', data: null }, layers: [] }),
+      panel: () => null,
     };
     expect(stub.validateDomainRules).toBeUndefined();
   });

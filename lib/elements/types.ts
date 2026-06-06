@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import type { z } from 'zod';
 
 import type { ElementType } from '@/db/schema/elements';
@@ -66,9 +67,21 @@ export interface ElementMapRender {
 }
 
 /**
- * #14 part 1 shipped schema + defaults + validator. Part 2 grows the surface:
- * `buildMapLayers` (this increment) is now required; `panel` (the right-sidebar
- * attribute editor) follows in the next increment alongside the editor wiring.
+ * Props the editor host passes a module's `panel` — the right-sidebar attribute
+ * editor. Controlled: the host owns `value` and persists `onChange` (debounced
+ * auto-save); `errors` carries server-side field errors to surface inline.
+ */
+export interface ElementPanelProps<TAttrs> {
+  readonly value: TAttrs;
+  readonly onChange: (next: TAttrs) => void;
+  readonly errors?: Readonly<Record<string, readonly string[]>>;
+}
+
+/**
+ * #14 part 1 shipped schema + defaults + validator. Part 2 adds the render +
+ * editing surface: `buildMapLayers` (map layers) and `panel` (the right-sidebar
+ * attribute editor) are both required. The editor host consumes them via the
+ * registry and never branches on element type.
  */
 export interface ElementTypeModule<TAttrs> {
   /** Discriminator -- matches the `element_type` Postgres enum value. */
@@ -96,6 +109,12 @@ export interface ElementTypeModule<TAttrs> {
    * branches on element type.
    */
   readonly buildMapLayers: (element: ElementRenderInput) => ElementMapRender;
+
+  /**
+   * The right-sidebar attribute editor for this element type. The editor host
+   * renders it via the registry and never imports a type-specific panel.
+   */
+  readonly panel: ComponentType<ElementPanelProps<TAttrs>>;
 
   /**
    * Optional domain-rule validator. Returns [] if everything is fine,
